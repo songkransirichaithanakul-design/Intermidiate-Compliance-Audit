@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { KirkpatrickPyramid } from './KirkpatrickPyramid';
-import { Clock, ShieldCheck, ChevronDown, ChevronUp, Sparkles, ArrowRight } from 'lucide-react';
+import { Clock, ShieldCheck, Sparkles, ArrowRight, FileCheck } from 'lucide-react';
 import { EvaluationDay } from '../types';
 
 interface HeroProps {
@@ -9,8 +9,6 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
-  const [showFullNotice, setShowFullNotice] = useState<boolean>(true);
-
   // Automatic Day Detection based on current date
   const now = new Date();
   const currentDayOfMonth = now.getDate();
@@ -51,8 +49,8 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 md:py-14 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
-          {/* Left Column: Information, Quick Action, Title, and Official Notice */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
+          {/* Left Column: Title, Official Notice (First), then Evaluation Action Box (Below) */}
           <div className="lg:col-span-7 text-left">
             <div className="inline-flex items-center gap-2 py-1 px-3.5 rounded-full bg-navy-800 text-lime font-kanit text-xs md:text-sm font-medium mb-3 border border-lime/30">
               <span className="w-2 h-2 rounded-full bg-lime animate-pulse" />
@@ -70,7 +68,38 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
               สำหรับข้าราชการระดับชำนาญการและชำนาญการพิเศษ สำนักงานการตรวจเงินแผ่นดิน
             </p>
 
-            {/* QUICK ACTIONS BAR: Automatic Date-Aware Questionnaire Selection (No Hardcoded Counts) */}
+            {/* 1. คำชี้แจง (Official Notice) - แสดงก่อนเพื่อให้ผู้เข้าอบรมอ่านคำชี้แจงก่อนทำแบบประเมิน */}
+            <div className="bg-navy-800/85 border border-slate-700/80 rounded-2xl p-4 sm:p-5 mb-5 text-left shadow-md">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-700/60">
+                <FileCheck className="w-4 h-4 text-lime" />
+                <h2 className="text-lime font-kanit font-semibold text-base sm:text-lg">
+                  คำชี้แจง (โปรดอ่านคำชี้แจงก่อนทำแบบประเมิน)
+                </h2>
+              </div>
+
+              <ol className="space-y-2.5 text-xs sm:text-sm font-sarabun text-slate-200 leading-relaxed list-none">
+                <li className="flex items-start gap-2.5">
+                  <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">1.</span>
+                  <span>
+                    แบบสอบถามนี้จัดทำขึ้นเพื่อประเมินผลความพึงพอใจและวัดผลการเรียนรู้รายวัน (Reaction and Learning Evaluation) เพื่อรวบรวมและวิเคราะห์สรุปรายงานผลการดำเนินโครงการภายหลังเสร็จสิ้นการดำเนินโครงการในวันสุดท้าย เสนอผู้บังคับบัญชาตามระเบียบต่อไป
+                  </span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">2.</span>
+                  <span>
+                    รายงานฉบับนี้จะเป็นข้อมูลสำหรับติดตามประเมินผลการนำความรู้ไปใช้ปฏิบัติงานจริงภายหลังเสร็จสิ้นการฝึกอบรมไม่น้อยกว่า 3 – 6 เดือน ต่อไป (Behavior and Result Evaluation)
+                  </span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">3.</span>
+                  <span>
+                    การให้ข้อมูลตามความเป็นจริงของท่านเป็นหัวใจสำคัญที่จะช่วยให้ได้ข้อมูลที่ถูกต้อง นำไปสู่การพัฒนาหลักสูตรและระบบสนับสนุนการทำงานที่ตรงจุดอย่างแท้จริง
+                  </span>
+                </li>
+              </ol>
+            </div>
+
+            {/* 2. แบบประเมิน (Evaluation Box) - วางอยู่ใต้คำชี้แจง เมื่ออ่านคำชี้แจงแล้วจึงเข้าทำแบบประเมิน */}
             <div className="bg-gradient-to-r from-navy-800/95 via-navy-800 to-navy-950 border-2 border-lime/80 rounded-2xl p-4 sm:p-5 mb-5 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
@@ -78,11 +107,11 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
                     <Sparkles className="w-4 h-4" />
                   </span>
                   <div>
-                    <h2 className="text-sm sm:text-base font-kanit font-bold text-white">
+                    <h3 className="text-sm sm:text-base font-kanit font-bold text-white">
                       แบบประเมินผลการฝึกอบรมประจำวัน
-                    </h2>
+                    </h3>
                     <p className="text-[11px] sm:text-xs text-lime font-sarabun">
-                      ระบบปรับแสดงแบบสอบถามตามวันที่อบรมโดยอัตโนมัติ
+                      เมื่ออ่านคำชี้แจงเรียบร้อยแล้ว สามารถกดทำแบบประเมินประจำวันได้ทันที
                     </p>
                   </div>
                 </div>
@@ -157,55 +186,6 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
               </div>
             </div>
 
-            {/* คำชี้แจง (Official Notice) */}
-            <div className="bg-navy-800/80 border border-slate-700/80 rounded-xl p-4 sm:p-5 mb-5 text-left shadow-md">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-lime font-kanit font-semibold text-base sm:text-lg">
-                  คำชี้แจง
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setShowFullNotice(!showFullNotice)}
-                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 sm:hidden cursor-pointer"
-                >
-                  {showFullNotice ? (
-                    <>
-                      <span>ย่อข้อความ</span>
-                      <ChevronUp className="w-3.5 h-3.5" />
-                    </>
-                  ) : (
-                    <>
-                      <span>ดูคำชี้แจงเต็ม</span>
-                      <ChevronDown className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {showFullNotice && (
-                <ol className="space-y-2.5 text-xs sm:text-sm font-sarabun text-slate-200 leading-relaxed list-none">
-                  <li className="flex items-start gap-2.5">
-                    <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">1.</span>
-                    <span>
-                      แบบสอบถามนี้จัดทำขึ้นเพื่อประเมินผลความพึงพอใจและวัดผลการเรียนรู้รายวัน (Reaction and Learning Evaluation) เพื่อรวบรวมและวิเคราะห์สรุปรายงานผลการดำเนินโครงการภายหลังเสร็จสิ้นการดำเนินโครงการในวันสุดท้าย เสนอผู้บังคับบัญชาตามระเบียบต่อไป
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">2.</span>
-                    <span>
-                      รายงานฉบับนี้จะเป็นข้อมูลสำหรับติดตามประเมินผลการนำความรู้ไปใช้ปฏิบัติงานจริงภายหลังเสร็จสิ้นการฝึกอบรมไม่น้อยกว่า 3 – 6 เดือน ต่อไป (Behavior and Result Evaluation)
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <span className="font-kanit font-semibold text-lime shrink-0 pt-0.5">3.</span>
-                    <span>
-                      การให้ข้อมูลตามความเป็นจริงของท่านเป็นหัวใจสำคัญที่จะช่วยให้ได้ข้อมูลที่ถูกต้อง นำไปสู่การพัฒนาหลักสูตรและระบบสนับสนุนการทำงานที่ตรงจุดอย่างแท้จริง
-                    </span>
-                  </li>
-                </ol>
-              )}
-            </div>
-
             {/* Institutional Trust markers */}
             <div className="pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-y-2 gap-x-4 sm:gap-x-6 text-[11px] sm:text-xs text-slate-400 font-sarabun">
               <span>มาตรฐานวิชาชีพการตรวจเงินแผ่นดิน (ISSAI)</span>
@@ -217,7 +197,7 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
           </div>
 
           {/* Right Column: Kirkpatrick 4 Levels Pyramid (Shown on desktop, moved to bottom on mobile) */}
-          <div className="hidden lg:block lg:col-span-5 w-full">
+          <div className="hidden lg:block lg:col-span-5 w-full sticky top-24">
             <KirkpatrickPyramid />
           </div>
         </div>
