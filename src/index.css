@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy-950: #090e17;
+  --color-navy-900: #0F172A;
+  --color-navy-800: #1E293B;
+  --color-navy-700: #334155;
+  --color-charcoal: #334155;
+  --color-charcoal-light: #475569;
+  --color-lime: #84CC16;
+  --color-lime-dark: #65A30D;
+  --color-lime-light: #d9f99d;
+
+  --font-kanit: 'Kanit', sans-serif;
+  --font-prompt: 'Prompt', sans-serif;
+  --font-sarabun: 'Sarabun', sans-serif;
+}
+
+body {
+  font-family: 'Prompt', 'Sarabun', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6, .font-kanit, .font-heading {
+  font-family: 'Kanit', sans-serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
