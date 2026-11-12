@@ -18,6 +18,8 @@ export type GeneralInfo = {
   bureauName: string; // ชื่อย่อสำนัก
   position: 'senior_professional' | 'special_professional'; // ชำนาญการ vs ชำนาญการพิเศษ
   roles: string[]; // multi-select roles
+  traineeId?: string;
+  traineeName?: string;
 };
 
 // Detailed response for Day 16

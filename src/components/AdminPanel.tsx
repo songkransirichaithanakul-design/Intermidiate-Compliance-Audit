@@ -314,8 +314,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </span>
                     </div>
                     <p className="text-xs text-slate-700 font-sarabun">
-                      พื้นที่: {s.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'} ({s.generalInfo.bureauName}) · ระดับ:{' '}
-                      {s.generalInfo.position === 'senior_professional' ? 'ชำนาญการ' : 'ชำนาญการพิเศษ'}
+                      ระดับ: <span className="font-semibold text-slate-900">{s.generalInfo.position === 'senior_professional' ? 'ชำนาญการ' : s.generalInfo.position === 'special_professional' ? 'ชำนาญการพิเศษ' : s.generalInfo.position}</span> · 
+                      พื้นที่: <span className="font-semibold text-slate-900">{s.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'}</span> ({s.generalInfo.bureauName})
                     </p>
                     <p className="text-[11px] text-slate-400 font-sarabun">
                       ส่งเมื่อ: {s.timestamp}
@@ -361,9 +361,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="overflow-y-auto p-6 space-y-4 text-xs sm:text-sm font-sarabun text-slate-700">
               <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-200 space-y-1">
                 <p className="font-kanit font-semibold text-navy-900">ข้อมูลผู้ตอบ:</p>
-                <p>พื้นที่: {selectedSubmission.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'} (ชื่อย่อสำนัก: {selectedSubmission.generalInfo.bureauName})</p>
-                <p>ระดับ: {selectedSubmission.generalInfo.position === 'senior_professional' ? 'ชำนาญการ' : 'ชำนาญการพิเศษ'}</p>
-                <p>บทบาทหน้าที่: {selectedSubmission.generalInfo.roles.join(', ')}</p>
+                <p>พื้นที่ปฏิบัติงาน: <span className="font-semibold text-slate-900">{selectedSubmission.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'}</span> (ชื่อย่อสำนัก: {selectedSubmission.generalInfo.bureauName})</p>
+                <p>ระดับตำแหน่ง: <span className="font-semibold text-slate-900">{selectedSubmission.generalInfo.position === 'senior_professional' ? 'ชำนาญการ (ปฏิบัติงานด้านตรวจสอบไม่น้อยกว่า 3 ปี)' : selectedSubmission.generalInfo.position === 'special_professional' ? 'ชำนาญการพิเศษ' : selectedSubmission.generalInfo.position}</span></p>
+                <p>บทบาทหน้าที่หลัก: {selectedSubmission.generalInfo.roles.join(', ')}</p>
                 <p className="text-slate-500 text-xs">เวลาที่บันทึก: {selectedSubmission.timestamp}</p>
               </div>
 
@@ -380,7 +380,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <h4 className="font-kanit font-bold text-navy-900 text-sm pt-2 border-t">Level 2 Learning</h4>
                   <p>หัวข้อ 1: ก่อน {selectedSubmission.day16Data.topic1Pre} / หลัง {selectedSubmission.day16Data.topic1Post}</p>
                   <p>หัวข้อ 2: ก่อน {selectedSubmission.day16Data.topic2Pre} / หลัง {selectedSubmission.day16Data.topic2Post}</p>
-                  <p>Scenario Assessment: ข้อ 1 = {selectedSubmission.day16Data.scenario1}, ข้อ 2 = {selectedSubmission.day16Data.scenario2}, ข้อ 3 = {selectedSubmission.day16Data.scenario3}</p>
+                  {selectedSubmission.day16Data.scenario1 ? (
+                    <p>Scenario Assessment: ข้อ 1 = {selectedSubmission.day16Data.scenario1}, ข้อ 2 = {selectedSubmission.day16Data.scenario2}, ข้อ 3 = {selectedSubmission.day16Data.scenario3}</p>
+                  ) : null}
 
                   <h4 className="font-kanit font-bold text-navy-900 text-sm pt-2 border-t">Level 3 & 4 Baseline</h4>
                   <p>ความคาดหวังนำไปใช้: {selectedSubmission.day16Data.baseline1}, {selectedSubmission.day16Data.baseline2}, {selectedSubmission.day16Data.baseline3}</p>

@@ -43,6 +43,55 @@ async function startServer() {
     }
   };
 
+  // Root API specification and endpoint documentation
+  app.get('/api', (req, res) => {
+    res.json({
+      name: 'Audit Evaluation System API',
+      organization: 'State Audit Office of Thailand (สำนักงานการตรวจเงินแผ่นดิน)',
+      version: '1.0.0',
+      description: 'RESTful API สำหรับระบบประเมินผลโครงการฝึกอบรม หลักสูตร "การตรวจสอบการปฏิบัติตามกฎหมาย ระดับกลาง"',
+      endpoints: [
+        {
+          method: 'GET',
+          path: '/api',
+          description: 'เอกสารสรุปรายการ API ทั้งหมดของระบบ',
+        },
+        {
+          method: 'GET',
+          path: '/api/health',
+          description: 'ตรวจสอบสถานะเซิร์ฟเวอร์และการเชื่อมต่อ (Health Check)',
+        },
+        {
+          method: 'GET',
+          path: '/api/database',
+          description: 'ดึงข้อมูลทั้งหมดในฐานข้อมูล (Submissions, Days, Participants)',
+        },
+        {
+          method: 'POST',
+          path: '/api/submissions',
+          description: 'บันทึกคำตอบแบบประเมินรายวันลงในฐานข้อมูล server-side file base',
+          body: '{ submission: EvaluationSubmission, days: EvaluationDay[], participants: ParticipantRecord[] }',
+        },
+        {
+          method: 'POST',
+          path: '/api/days',
+          description: 'ปรับปรุงสถานะเปิด-ปิดรับคำตอบประจำวัน (Admin only)',
+          body: '{ days: EvaluationDay[] }',
+        },
+        {
+          method: 'POST',
+          path: '/api/database/reset',
+          description: 'ล้างข้อมูลและรีเซ็ตฐานข้อมูลกลับเป็นค่าเริ่มต้น (Admin only)',
+        },
+        {
+          method: 'GET',
+          path: '/api/database/export',
+          description: 'ดาวน์โหลดไฟล์สำรองข้อมูลฐานข้อมูล JSON (Database Backup Export)',
+        },
+      ],
+    });
+  });
+
   // 1. Health endpoint
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', time: new Date().toISOString() });

@@ -29,13 +29,11 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [submittedReceipt, setSubmittedReceipt] = useState<EvaluationSubmission | null>(null);
 
-  // Section 1: General Info
-  const [workArea, setWorkArea] = useState<'central' | 'regional'>('central');
-  const [bureauName, setBureauName] = useState('');
-  const [position, setPosition] = useState<'senior_professional' | 'special_professional'>(
-    'senior_professional'
-  );
-  const [roles, setRoles] = useState<string[]>(['ปฏิบัติงานตรวจสอบ']);
+  // Section 1: General Info (เริ่มต้นว่างไว้ ไม่ใส่ค่าจำลอง เพื่อรอรับคำตอบจริง)
+  const [workArea, setWorkArea] = useState<'central' | 'regional' | ''>('');
+  const [bureauName, setBureauName] = useState<string>('');
+  const [position, setPosition] = useState<'senior_professional' | 'special_professional' | ''>('');
+  const [roles, setRoles] = useState<string[]>([]);
 
   // Shared Level 1: Content (0 = not chosen yet)
   const [contentScore1, setContentScore1] = useState<number>(0);
@@ -90,18 +88,25 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
 
   const handleRoleToggle = (role: string) => {
     if (roles.includes(role)) {
-      if (roles.length > 1) {
-        setRoles(roles.filter((r) => r !== role));
-      }
+      setRoles(roles.filter((r) => r !== role));
     } else {
       setRoles([...roles, role]);
     }
+    setStepError('');
   };
 
   // Step 1 Validation
   const validateStep1 = (): boolean => {
+    if (!workArea) {
+      setStepError('กรุณาเลือกพื้นที่ปฏิบัติงานของท่าน (ส่วนกลาง หรือ ส่วนภูมิภาค)');
+      return false;
+    }
     if (!bureauName.trim()) {
       setStepError('กรุณาระบุชื่อย่อสำนักของท่าน');
+      return false;
+    }
+    if (!position) {
+      setStepError('กรุณาเลือกระดับตำแหน่งปัจจุบันของท่าน');
       return false;
     }
     if (roles.length === 0) {
@@ -243,6 +248,10 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
     e.preventDefault();
 
     if (!validateStep1() || !validateStep2() || !validateStep3() || !validateStep4() || !validateStep5()) {
+      return;
+    }
+
+    if (!workArea || !position) {
       return;
     }
 
@@ -810,7 +819,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                 </h3>
                 <ol className="list-decimal pl-5 space-y-2 leading-relaxed text-slate-700">
                   <li>
-                    แบบสอบถามนี้จัดทำขึ้นเพื่อประเมินผลความพึงพอใจและวัดผลการเรียนรู้รายวัน (Reaction and Learning Evaluation) เพื่อรวบรวมและวิเคราะห์สรุปรายงานผลการดำเนินโครงการภายหลังเสร็จสิ้นการดำเนินโครงการภายใน 60 วัน โดยเสนอรายงานแก่หัวหน้าหน่วยงาน ตามระเบียบกระทรวงการคลัง พ.ศ. 2549
+                    แบบสอบถามนี้จัดทำขึ้นเพื่อประเมินผลความพึงพอใจและวัดผลการเรียนรู้รายวัน (Reaction and Learning Evaluation) เพื่อรวบรวมและวิเคราะห์สรุปรายงานผลการดำเนินโครงการภายหลังเสร็จสิ้นการดำเนินโครงการในวันสุดท้าย เสนอผู้บังคับบัญชาตามระเบียบต่อไป
                   </li>
                   <li>
                     รายงานฉบับนี้จะเป็นข้อมูลสำหรับติดตามประเมินผลการนำความรู้ไปใช้ปฏิบัติงานจริงภายหลังเสร็จสิ้นการฝึกอบรมไม่น้อยกว่า 3 – 6 เดือน ต่อไป (Behavior and Result Evaluation)
@@ -822,7 +831,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
               </div>
 
               {/* Section 1 Card */}
-              <div className="bg-white p-5 sm:p-7 rounded-xl border border-slate-200 shadow-xs space-y-6">
+              <div className="bg-white p-5 sm:p-7 rounded-2xl border border-slate-200 shadow-xs space-y-6">
                 <div className="border-b border-slate-200 pb-3">
                   <span className="text-xs font-prompt font-semibold text-lime-dark uppercase tracking-wider">
                     ขั้นตอนที่ 1 จาก 5
@@ -834,18 +843,18 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
 
                 {/* 1. พื้นที่ปฏิบัติงาน */}
                 <div className="space-y-2">
-                  <p className="text-base font-prompt font-semibold text-slate-900">
-                    1. พื้นที่ปฏิบัติงานของท่าน <span className="text-red-500">*</span>
+                  <p className="text-base sm:text-lg font-prompt font-semibold text-slate-900">
+                    1. พื้นที่ปฏิบัติงานของท่าน <span className="text-red-500 font-bold">*</span>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label
                       className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                         workArea === 'central'
                           ? 'border-lime bg-lime/10 ring-1 ring-lime/40'
-                          : 'border-slate-200 hover:border-slate-300'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2.5 mb-2">
                         <input
                           type="radio"
                           name="workArea"
@@ -854,7 +863,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                             setWorkArea('central');
                             setStepError('');
                           }}
-                          className="text-lime-dark focus:ring-lime"
+                          className="text-lime-dark focus:ring-lime h-4 w-4 cursor-pointer"
                         />
                         <span className="text-base font-prompt font-bold text-slate-900">
                           ส่วนกลาง
@@ -868,8 +877,8 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                           setBureauName(e.target.value);
                           setStepError('');
                         }}
-                        placeholder="ระบุชื่อย่อสำนัก เช่น สตน.1, สตส., สชญ."
-                        className="w-full text-sm font-prompt px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime disabled:bg-slate-100"
+                        placeholder="ระบุชื่อย่อสำนัก เช่น สตน.1, สตก.1, สพบ."
+                        className="w-full text-sm font-prompt px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime disabled:bg-slate-100 disabled:text-slate-400"
                       />
                     </label>
 
@@ -877,10 +886,10 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                       className={`p-4 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                         workArea === 'regional'
                           ? 'border-lime bg-lime/10 ring-1 ring-lime/40'
-                          : 'border-slate-200 hover:border-slate-300'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
                       }`}
                     >
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2.5 mb-2">
                         <input
                           type="radio"
                           name="workArea"
@@ -889,7 +898,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                             setWorkArea('regional');
                             setStepError('');
                           }}
-                          className="text-lime-dark focus:ring-lime"
+                          className="text-lime-dark focus:ring-lime h-4 w-4 cursor-pointer"
                         />
                         <span className="text-base font-prompt font-bold text-slate-900">
                           ส่วนภูมิภาค
@@ -903,8 +912,8 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                           setBureauName(e.target.value);
                           setStepError('');
                         }}
-                        placeholder="ระบุชื่อย่อสำนัก เช่น ตภ.1, ตภ.7, ตภ.8"
-                        className="w-full text-sm font-prompt px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime disabled:bg-slate-100"
+                        placeholder="ระบุชื่อย่อสำนัก เช่น ตภ.1, ตภ.7, ตภ.10"
+                        className="w-full text-sm font-prompt px-3 py-2 bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-lime disabled:bg-slate-100 disabled:text-slate-400"
                       />
                     </label>
                   </div>
@@ -912,15 +921,15 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
 
                 {/* 2. ระดับตำแหน่งปัจจุบัน */}
                 <div className="space-y-2 pt-3 border-t border-slate-100">
-                  <p className="text-base font-prompt font-semibold text-slate-900">
-                    2. ระดับตำแหน่งปัจจุบัน <span className="text-red-500">*</span>
+                  <p className="text-base sm:text-lg font-prompt font-semibold text-slate-900">
+                    2. ระดับตำแหน่งปัจจุบัน <span className="text-red-500 font-bold">*</span>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label
-                      className={`p-3.5 rounded-xl border-2 cursor-pointer flex items-center gap-2.5 ${
+                      className={`p-3.5 sm:p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${
                         position === 'senior_professional'
-                          ? 'border-lime bg-lime/10 ring-1 ring-lime/40'
-                          : 'border-slate-200 hover:border-slate-300'
+                          ? 'border-lime bg-lime/10 ring-1 ring-lime/40 text-slate-950 font-medium'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                       }`}
                     >
                       <input
@@ -928,7 +937,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                         name="position"
                         checked={position === 'senior_professional'}
                         onChange={() => setPosition('senior_professional')}
-                        className="text-lime-dark focus:ring-lime"
+                        className="text-lime-dark focus:ring-lime h-4 w-4 cursor-pointer"
                       />
                       <span className="text-sm sm:text-base font-prompt text-slate-900">
                         ชำนาญการ (ปฏิบัติงานด้านตรวจสอบไม่น้อยกว่า 3 ปี)
@@ -936,10 +945,10 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                     </label>
 
                     <label
-                      className={`p-3.5 rounded-xl border-2 cursor-pointer flex items-center gap-2.5 ${
+                      className={`p-3.5 sm:p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${
                         position === 'special_professional'
-                          ? 'border-lime bg-lime/10 ring-1 ring-lime/40'
-                          : 'border-slate-200 hover:border-slate-300'
+                          ? 'border-lime bg-lime/10 ring-1 ring-lime/40 text-slate-950 font-medium'
+                          : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                       }`}
                     >
                       <input
@@ -947,7 +956,7 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                         name="position"
                         checked={position === 'special_professional'}
                         onChange={() => setPosition('special_professional')}
-                        className="text-lime-dark focus:ring-lime"
+                        className="text-lime-dark focus:ring-lime h-4 w-4 cursor-pointer"
                       />
                       <span className="text-sm sm:text-base font-prompt text-slate-900 font-medium">
                         ชำนาญการพิเศษ
@@ -958,8 +967,8 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
 
                 {/* 3. บทบาทหน้าที่หลัก */}
                 <div className="space-y-2 pt-3 border-t border-slate-100">
-                  <p className="text-base font-prompt font-semibold text-slate-900">
-                    3. บทบาทหน้าที่หลักในการปฏิบัติงานปัจจุบัน (เลือกได้มากกว่า 1 ข้อ) <span className="text-red-500">*</span>
+                  <p className="text-base sm:text-lg font-prompt font-semibold text-slate-900">
+                    3. บทบาทหน้าที่หลักในการปฏิบัติงานปัจจุบัน (เลือกได้มากกว่า 1 ข้อ) <span className="text-red-500 font-bold">*</span>
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {[
@@ -970,17 +979,17 @@ export const EvaluationPage: React.FC<EvaluationPageProps> = ({
                     ].map((role) => (
                       <label
                         key={role}
-                        className={`p-3 rounded-xl border-2 cursor-pointer flex items-center gap-2.5 text-sm sm:text-base font-prompt ${
+                        className={`p-3 sm:p-3.5 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-2.5 text-sm sm:text-base font-prompt ${
                           roles.includes(role)
                             ? 'border-lime bg-lime/10 font-medium text-slate-950 ring-1 ring-lime/40'
-                            : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                            : 'border-slate-200 hover:border-slate-300 bg-white text-slate-700'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={roles.includes(role)}
                           onChange={() => handleRoleToggle(role)}
-                          className="rounded text-lime-dark focus:ring-lime"
+                          className="rounded text-lime-dark focus:ring-lime h-4 w-4 cursor-pointer"
                         />
                         <span>{role}</span>
                       </label>

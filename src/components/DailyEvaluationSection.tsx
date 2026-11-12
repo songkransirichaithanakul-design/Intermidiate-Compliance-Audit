@@ -217,7 +217,7 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-kanit font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
-            เปิดรับคำตอบ: วันที่ 16 และ 17 พ.ย.
+            ระบบเปิดรับคำตอบตามกำหนดการอบรม
           </span>
         </div>
       </div>

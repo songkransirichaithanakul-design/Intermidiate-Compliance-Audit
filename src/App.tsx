@@ -16,6 +16,8 @@ import { Footer } from './components/Footer';
 import { INITIAL_DAYS } from './data/trainingData';
 import { EvaluationDay, EvaluationSubmission, ParticipantRecord, DayStatus } from './types';
 import { DataService } from './services/dataService';
+import { KirkpatrickPyramid } from './components/KirkpatrickPyramid';
+import { UserCheck, CheckCircle2, Award, Sparkles, ArrowRight, Clock } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'evaluation' | 'dashboard' | 'admin'>('home');
@@ -86,10 +88,25 @@ export default function App() {
     localStorage.setItem('auditeval_is_admin', isAdmin ? 'true' : 'false');
   }, [isAdmin]);
 
-  const selectedDay = days.find((d) => d.id === selectedDayId) || days[0];
+  // Dynamic automatic day detection based on current date
+  const now = new Date();
+  const currentDayOfMonth = now.getDate();
+  const todayMatchedDay = days.find((d) => {
+    const m = d.dateStr.match(/^(\d+)/);
+    return m ? parseInt(m[1], 10) === currentDayOfMonth : false;
+  });
+  const openDaysList = days.filter((d) => d.status === 'open');
+  const activeAutoDay =
+    (todayMatchedDay && todayMatchedDay.status === 'open')
+      ? todayMatchedDay
+      : openDaysList.length > 0
+      ? openDaysList[0]
+      : todayMatchedDay || days[0];
+
+  const selectedDay = days.find((d) => d.id === selectedDayId) || activeAutoDay;
 
   // Dynamic calculations
-  const todaySubmitted = submissions.filter((s) => s.dayId === 'day-1' || s.dayId === 'day-2').length;
+  const todaySubmitted = submissions.filter((s) => s.dayId === activeAutoDay.id).length;
   const totalSubmitted = submissions.length;
   const overallSatisfactionPercent =
     submissions.length > 0
@@ -104,8 +121,8 @@ export default function App() {
       : 0;
 
   // Handler: Open dedicated evaluation page (NOT a popup modal!)
-  const handleOpenEvaluation = (dayId: string = 'day-1') => {
-    setSelectedDayId(dayId);
+  const handleOpenEvaluation = (dayId?: string) => {
+    setSelectedDayId(dayId || activeAutoDay.id);
     setActiveTab('evaluation');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -129,11 +146,21 @@ export default function App() {
     });
 
     // 2. Calculate updated participant record
-    const pName = newSubmission.participantName || `ผู้เข้าอบรม ${newSubmission.generalInfo.bureauName}`;
+    const pName =
+      newSubmission.participantName ||
+      (newSubmission.generalInfo.traineeName
+        ? `${newSubmission.generalInfo.traineeId ? `[${newSubmission.generalInfo.traineeId}] ` : ''}${newSubmission.generalInfo.traineeName}`
+        : `ผู้เข้าอบรม ${newSubmission.generalInfo.bureauName || ''}`);
     const posText =
-      newSubmission.generalInfo.position === 'senior_professional' ? 'ชำนาญการ' : 'ชำนาญการพิเศษ';
+      newSubmission.generalInfo.position === 'senior_professional'
+        ? 'ชำนาญการ'
+        : newSubmission.generalInfo.position === 'special_professional'
+        ? 'ชำนาญการพิเศษ'
+        : newSubmission.generalInfo.position || 'นักวิชาการตรวจเงินแผ่นดิน';
     const areaText = newSubmission.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค';
-    const deptText = `${areaText} (${newSubmission.generalInfo.bureauName})`;
+    const deptText = newSubmission.generalInfo.bureauName
+      ? `${areaText} (${newSubmission.generalInfo.bureauName})`
+      : areaText;
 
     let updatedParticipants: ParticipantRecord[] = [];
     const existsIndex = participants.findIndex((p) => p.name === pName);
@@ -151,7 +178,7 @@ export default function App() {
     } else {
       const newRecord: ParticipantRecord = {
         id: `P${participants.length + 1}`,
-        code: `STG-2569-${(participants.length + 1).toString().padStart(3, '0')}`,
+        code: newSubmission.generalInfo.traineeId || `STG-2569-${(participants.length + 1).toString().padStart(3, '0')}`,
         name: pName,
         position: posText,
         department: deptText,
@@ -348,14 +375,84 @@ export default function App() {
         {/* VIEW 1: HOME PAGE */}
         {activeTab === 'home' && (
           <>
-            <Hero />
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 md:py-12 space-y-12">
+            <Hero days={days} onSelectDay={handleOpenEvaluation} />
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12 space-y-10 pb-24 md:pb-12">
+              {/* 3-Step Quick Guide for Trainees */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-emerald-50 text-emerald-700">
+                      <Sparkles className="w-4 h-4 text-emerald-600" />
+                    </span>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-kanit font-bold text-navy-900">
+                        ขั้นตอนการตอบแบบประเมินผลรายวัน (สะดวก รวดเร็ว 2-3 นาที)
+                      </h2>
+                      <p className="text-xs text-slate-500 font-sarabun">
+                        เพื่อนำข้อมูลไปสรุปรายงานผลและติดตามผลสัมฤทธิ์ตามระเบียบ สตง.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs font-sarabun text-slate-600 self-start sm:self-auto">
+                    <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
+                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                      ประมาณ 2–3 นาที
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-kanit font-bold text-sm shrink-0 shadow-xs">
+                      1
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-kanit font-bold text-navy-900">
+                        ข้อมูลทั่วไปของผู้ตอบแบบสอบถาม
+                      </div>
+                      <p className="text-xs text-slate-600 font-sarabun mt-0.5">
+                        ระบุตำแหน่งและพื้นที่ปฏิบัติงาน (ส่วนกลาง หรือ ส่วนภูมิภาค)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-kanit font-bold text-sm shrink-0 shadow-xs">
+                      2
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-kanit font-bold text-navy-900">
+                        ประเมินความพึงพอใจ &amp; ความรู้
+                      </div>
+                      <p className="text-xs text-slate-600 font-sarabun mt-0.5">
+                        ให้คะแนนวิทยากร (Reaction) และวัดผลความรู้ ก่อน-หลัง อบรม (Learning)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-kanit font-bold text-sm shrink-0 shadow-xs">
+                      3
+                    </div>
+                    <div>
+                      <div className="text-xs sm:text-sm font-kanit font-bold text-navy-900">
+                        รับรหัสยืนยันการส่งทันที
+                      </div>
+                      <p className="text-xs text-slate-600 font-sarabun mt-0.5">
+                        บันทึกข้อเสนอแนะ และรับ Reference Code สำหรับเป็นหลักฐานยืนยัน
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <StatsCards
                 todaySubmitted={todaySubmitted}
                 totalSubmitted={totalSubmitted}
                 overallSatisfactionPercent={overallSatisfactionPercent}
                 averageScoreOutOf5={averageScoreOutOf5}
-                onFilterActiveToday={() => handleOpenEvaluation('day-1')}
+                onFilterActiveToday={() => handleOpenEvaluation(activeAutoDay.id)}
               />
 
               <DailyEvaluationSection
@@ -363,7 +460,49 @@ export default function App() {
                 userSubmissions={userSubmissionsMap}
                 onSelectDay={handleOpenEvaluation}
               />
+
+              {/* Dedicated Kirkpatrick Model Section at bottom of page for mobile convenience & academic reference */}
+              <section id="kirkpatrick-model" className="pt-8 border-t border-slate-200 scroll-mt-20">
+                <div className="text-center max-w-2xl mx-auto mb-6">
+                  <span className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full bg-navy-100 text-navy-900 text-xs font-kanit font-semibold mb-2 border border-slate-300">
+                    <Award className="w-3.5 h-3.5 text-amber-600" />
+                    กรอบทฤษฎีการประเมินผลระดับสากล
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-kanit font-bold text-navy-900">
+                    การติดตามประเมินผลตามทฤษฎี Donald Kirkpatrick 4 ระดับ
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 font-sarabun mt-1.5 max-w-xl mx-auto">
+                    หลักสูตรนี้จัดระบบการวัดผลตามมาตรฐานสากล: ประเมินความพึงพอใจ (Reaction) และการเรียนรู้ (Learning) รายวัน เพื่อใช้เป็นฐานข้อมูล (Baseline) ในการติดตามผลพฤติกรรมการปฏิบัติงานจริง (Behavior) และผลสัมฤทธิ์ต่อ สตง. (Results)
+                  </p>
+                </div>
+
+                <div className="max-w-3xl mx-auto">
+                  <KirkpatrickPyramid />
+                </div>
+              </section>
             </main>
+
+            {/* Mobile Floating Sticky Bar for 1-Tap Evaluation Access */}
+            <div className="fixed bottom-0 inset-x-0 bg-navy-950/95 backdrop-blur-md border-t-2 border-lime/80 py-2.5 px-4 z-40 md:hidden shadow-2xl flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] text-lime font-kanit font-bold uppercase tracking-wider flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-lime animate-ping" />
+                  แบบประเมินประจำวัน:
+                </div>
+                <div className="text-xs text-white font-kanit font-semibold truncate">
+                  {activeAutoDay.dayLabel} · {activeAutoDay.dateStr}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleOpenEvaluation(activeAutoDay.id)}
+                className="px-4 py-2 bg-lime hover:bg-lime-dark text-navy-950 text-xs font-kanit font-bold rounded-xl shadow-md active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
+              >
+                <span>ทำแบบประเมิน</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </>
         )}
 
