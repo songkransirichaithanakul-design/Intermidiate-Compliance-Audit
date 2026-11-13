@@ -532,10 +532,10 @@ export default function App() {
                     </div>
                     <div>
                       <div className="text-xs sm:text-sm font-kanit font-bold text-navy-900">
-                        รับรหัสยืนยันการส่งทันที
+                        กดยืนยันส่งคำตอบ
                       </div>
                       <p className="text-xs text-slate-600 font-sarabun mt-0.5">
-                        บันทึกข้อเสนอแนะ และรับ Reference Code สำหรับเป็นหลักฐานยืนยัน
+                        บันทึกข้อเสนอแนะ ตรวจทานคำตอบ และกดยืนยันการส่ง (รับ Reference Code หลังส่งสำเร็จ)
                       </p>
                     </div>
                   </div>
