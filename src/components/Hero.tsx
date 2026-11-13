@@ -1,6 +1,6 @@
 import React from 'react';
 import { KirkpatrickPyramid } from './KirkpatrickPyramid';
-import { Clock, ShieldCheck, Sparkles, ArrowRight, FileCheck } from 'lucide-react';
+import { Clock, ShieldCheck, Sparkles, ArrowRight, FileCheck, Lock } from 'lucide-react';
 import { EvaluationDay } from '../types';
 
 interface HeroProps {
@@ -9,29 +9,22 @@ interface HeroProps {
 }
 
 export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
-  // Automatic Day Detection based on current date
+  // Automatic Day Detection based on current date — STRICTLY filtered to Admin-opened days ONLY
   const now = new Date();
   const currentDayOfMonth = now.getDate();
 
-  // Find if today matches any scheduled training day (16, 17, 18, 19, 20, 23, 24, 25, 26, 27)
-  const todayMatchedDay = days.find((d) => {
+  const openDays = days.filter((d) => d.status === 'open');
+
+  // If today's calendar day is OPEN by Admin, prioritize it; otherwise pick the first OPEN day.
+  // NEVER auto-open a closed or waiting day!
+  const todayOpenDay = openDays.find((d) => {
     const m = d.dateStr.match(/^(\d+)/);
     return m ? parseInt(m[1], 10) === currentDayOfMonth : false;
   });
 
-  const openDays = days.filter((d) => d.status === 'open');
+  const activeDay = todayOpenDay || openDays[0] || null;
 
-  // Determine active day:
-  // If today matches a scheduled training date and is open, select it.
-  // Otherwise, select the first open day, or today's scheduled day, or fallback to first day.
-  const activeDay =
-    (todayMatchedDay && todayMatchedDay.status === 'open')
-      ? todayMatchedDay
-      : openDays.length > 0
-      ? openDays[0]
-      : todayMatchedDay || days[0];
-
-  // Other open days for quick switching without hardcoded counts
+  // Other open days for quick switching
   const otherOpenDays = openDays.filter((d) => d.id !== activeDay?.id);
 
   return (
@@ -100,32 +93,40 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
             </div>
 
             {/* 2. แบบประเมิน (Evaluation Box) - วางอยู่ใต้คำชี้แจง เมื่ออ่านคำชี้แจงแล้วจึงเข้าทำแบบประเมิน */}
-            <div className="bg-gradient-to-r from-navy-800/95 via-navy-800 to-navy-950 border-2 border-lime/80 rounded-2xl p-4 sm:p-5 mb-5 shadow-xl">
+            <div
+              className={`bg-gradient-to-r from-navy-800/95 via-navy-800 to-navy-950 border-2 rounded-2xl p-4 sm:p-5 mb-5 shadow-xl ${
+                activeDay ? 'border-lime/80' : 'border-slate-600/80'
+              }`}
+            >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="p-1 rounded-md bg-lime/20 text-lime">
-                    <Sparkles className="w-4 h-4" />
+                  <span className={`p-1 rounded-md ${activeDay ? 'bg-lime/20 text-lime' : 'bg-slate-700 text-slate-300'}`}>
+                    {activeDay ? <Sparkles className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                   </span>
                   <div>
                     <h3 className="text-sm sm:text-base font-kanit font-bold text-white">
                       แบบประเมินผลการฝึกอบรมประจำวัน
                     </h3>
-                    <p className="text-[11px] sm:text-xs text-lime font-sarabun">
-                      เมื่ออ่านคำชี้แจงเรียบร้อยแล้ว สามารถกดทำแบบประเมินประจำวันได้ทันที
+                    <p className={`text-[11px] sm:text-xs font-sarabun ${activeDay ? 'text-lime' : 'text-slate-300'}`}>
+                      {activeDay
+                        ? 'เมื่ออ่านคำชี้แจงเรียบร้อยแล้ว สามารถกดทำแบบประเมินประจำวันได้ทันที'
+                        : 'สิทธิการเปิด-ปิดรับคำตอบควบคุมโดยผู้ดูแลระบบ (Admin)'}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] text-slate-300 font-sarabun shrink-0">
-                  <span className="inline-flex items-center gap-1 bg-navy-900/80 px-2.5 py-1 rounded-md border border-slate-700">
-                    <Clock className="w-3.5 h-3.5 text-lime" />
-                    ใช้เวลาเพียง 2–3 นาที
-                  </span>
-                </div>
+                {activeDay && (
+                  <div className="flex items-center gap-2 text-[11px] text-slate-300 font-sarabun shrink-0">
+                    <span className="inline-flex items-center gap-1 bg-navy-900/80 px-2.5 py-1 rounded-md border border-slate-700">
+                      <Clock className="w-3.5 h-3.5 text-lime" />
+                      ใช้เวลาเพียง 2–3 นาที
+                    </span>
+                  </div>
+                )}
               </div>
 
-              {/* Primary Automatic Day Button */}
-              {activeDay && (
+              {/* Primary Open Day Button OR Closed Status Banner */}
+              {activeDay ? (
                 <button
                   type="button"
                   onClick={() => onSelectDay?.(activeDay.id)}
@@ -144,6 +145,20 @@ export const Hero: React.FC<HeroProps> = ({ days, onSelectDay }) => {
                     <ArrowRight className="w-5 h-5 text-navy-950" />
                   </span>
                 </button>
+              ) : (
+                <div className="w-full flex items-center gap-3 p-3.5 sm:p-4 rounded-xl bg-navy-950/80 border border-slate-700 text-slate-300">
+                  <div className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-600 flex items-center justify-center shrink-0">
+                    <Lock className="w-4 h-4 text-rose-400" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-sm font-kanit font-bold text-white">
+                      ขณะนี้ยังไม่มีรอบแบบประเมินที่เปิดรับคำตอบ
+                    </div>
+                    <div className="text-xs text-slate-400 font-sarabun mt-0.5">
+                      กรุณารอผู้ดูแลระบบ (Admin) เปิดรับคำตอบตามกำหนดการฝึกอบรม
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Dynamic Other Open Days (if any) */}

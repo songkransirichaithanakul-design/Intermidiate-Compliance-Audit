@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { EvaluationDay } from '../types';
+import { QUESTIONNAIRE_CONFIGS } from '../data/questionnaireConfigs';
 import {
   Scale,
   ShieldCheck,
@@ -24,7 +25,6 @@ interface DailyEvaluationSectionProps {
   onSelectDay: (dayId: string) => void;
 }
 
-// Visual themes for each day: Distinct, refined, eye-catching, not garish
 const DAY_THEMES: Record<
   string,
   {
@@ -217,18 +217,20 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-kanit font-semibold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md">
-            ระบบเปิดรับคำตอบตามกำหนดการอบรม
+            เปิด-ปิดรับคำตอบควบคุมโดยผู้ดูแลระบบ (Admin)
           </span>
         </div>
       </div>
 
-      {/* Two-column Grid for Daily Evaluations with Distinctive Icons */}
+      {/* Two-column Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
         {regularDays.map((d) => {
           const isDone = !!userSubmissions[d.id];
           const isOpen = d.status === 'open';
           const isClosed = d.status === 'closed';
           const isWaiting = d.status === 'waiting';
+          const cfg = QUESTIONNAIRE_CONFIGS[d.id];
+          const hasReadyForm = !!cfg;
 
           const theme = DAY_THEMES[d.id] || {
             bgIcon: 'bg-slate-50 text-slate-700',
@@ -246,12 +248,11 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                 isOpen
                   ? `border-slate-200 ${theme.cardBorderHover} hover:shadow-md`
                   : isClosed
-                  ? 'border-rose-200 bg-rose-50/10'
+                  ? 'border-slate-200 bg-slate-50/40'
                   : 'border-slate-200 bg-slate-50/50 opacity-90'
               }`}
             >
               <div className="flex items-start gap-4">
-                {/* Distinctive, Eye-catching Icon Badge */}
                 <div
                   className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 border ${theme.bgIcon} ${theme.borderColor} shadow-2xs`}
                 >
@@ -261,16 +262,14 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                   </span>
                 </div>
 
-                {/* Day Details */}
                 <div className="flex-1 space-y-2 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span
                       className={`text-xs font-kanit font-bold px-2 py-0.5 rounded border ${theme.tagBg}`}
                     >
                       {d.dayLabel} · {d.dateStr}
                     </span>
 
-                    {/* Status Badges */}
                     {isOpen && (
                       <span className="text-[11px] font-kanit font-semibold text-emerald-700 bg-emerald-100 border border-emerald-200 px-2.5 py-0.5 rounded-full">
                         เปิดรับคำตอบ
@@ -286,7 +285,11 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                         รอข้อมูลแบบสอบถาม
                       </span>
                     )}
-
+                    {hasReadyForm && !isOpen && (
+                      <span className="text-[11px] font-kanit font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                        เตรียมแบบฟอร์มพร้อมแล้ว
+                      </span>
+                    )}
                     {isDone && (
                       <span className="text-[11px] font-kanit font-semibold text-teal-700 bg-teal-100 border border-teal-200 px-2 py-0.5 rounded-full">
                         ประเมินแล้ว
@@ -297,6 +300,15 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                   <h3 className="text-base sm:text-lg font-kanit font-bold text-navy-900 leading-snug">
                     {d.title}
                   </h3>
+
+                  {cfg && (
+                    <p className="text-xs text-slate-600 font-sarabun leading-relaxed">
+                      วิทยากร:{' '}
+                      {cfg.lecturerSessions
+                        .map((s) => (s.speakerName ? `${s.sessionLabel}: ${s.speakerName}` : s.sessionLabel))
+                        .join(' | ')}
+                    </p>
+                  )}
 
                   {isWaiting && (
                     <p className="text-xs text-slate-400 font-sarabun">
@@ -310,13 +322,12 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                   )}
                   {isClosed && (
                     <p className="text-xs text-rose-600 font-sarabun">
-                      ปิดรับคำตอบสำหรับการอบรมในรอบวันนี้แล้ว
+                      รอผู้ดูแลระบบ (Admin) เปิดรับคำตอบ หรือปิดรับรอบวันนี้แล้ว
                     </p>
                   )}
 
-                  {/* Action Button */}
                   <div className="pt-2">
-                    {isOpen ? (
+                    {isOpen && hasReadyForm ? (
                       <button
                         type="button"
                         onClick={() => onSelectDay(d.id)}
@@ -326,7 +337,7 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                             : 'bg-lime text-navy-900 hover:bg-lime-dark hover:text-white'
                         }`}
                       >
-                        {isDone ? 'แก้ไขแบบประเมิน' : 'ทำแบบประเมิน'}
+                        {isDone ? 'ทำแบบประเมินเพิ่มเติม / แก้ไข' : 'ทำแบบประเมิน'}
                       </button>
                     ) : isClosed ? (
                       <button
@@ -334,7 +345,7 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
                         disabled
                         className="text-xs font-kanit font-medium px-4 py-2 rounded-xl bg-rose-100 text-rose-600 border border-rose-200 cursor-not-allowed"
                       >
-                        ปิดรับคำตอบ
+                        ปิดรับคำตอบ (ควบคุมโดย Admin)
                       </button>
                     ) : (
                       <button
@@ -353,7 +364,7 @@ export const DailyEvaluationSection: React.FC<DailyEvaluationSectionProps> = ({
         })}
       </div>
 
-      {/* Special Field Trip Card with Distinctive Icon */}
+      {/* Special Field Trip Card */}
       {specialDay && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-xs hover:border-fuchsia-300 transition-all">
           <div className="flex items-start gap-4">

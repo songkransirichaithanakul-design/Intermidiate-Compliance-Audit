@@ -19,16 +19,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     <nav className="bg-navy-900 text-white shadow-lg sticky top-0 z-50 border-b border-navy-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Brand - text only */}
-          <div className="flex items-center">
+          {/* Brand with SADI Logo */}
+          <div className="flex items-center min-w-0">
             <button
               onClick={() => {
                 setActiveTab('home');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               }}
-              className="text-left focus:outline-none cursor-pointer"
+              className="flex items-center gap-2.5 sm:gap-3 text-left focus:outline-none cursor-pointer group min-w-0"
             >
-              <span className="font-kanit font-semibold text-base sm:text-lg lg:text-xl tracking-wide text-white hover:text-lime transition-colors">
+              <span className="bg-white px-2 py-1 rounded-lg shadow-xs flex items-center justify-center shrink-0">
+                <img
+                  src="/assets/aistudio/Asset_8_300x_0_30a573ad.png"
+                  alt="สถาบันพัฒนาการตรวจเงินแผ่นดิน (SADI)"
+                  className="h-6 sm:h-7 w-auto object-contain"
+                />
+              </span>
+              <span className="font-kanit font-semibold text-sm sm:text-lg lg:text-xl tracking-wide text-white group-hover:text-lime transition-colors truncate">
                 สถาบันพัฒนาการตรวจเงินแผ่นดิน
               </span>
             </button>

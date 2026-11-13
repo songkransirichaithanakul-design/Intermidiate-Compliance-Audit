@@ -14,7 +14,14 @@ import { AdminPanel } from './components/AdminPanel';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { Footer } from './components/Footer';
 import { INITIAL_DAYS } from './data/trainingData';
-import { EvaluationDay, EvaluationSubmission, ParticipantRecord, DayStatus } from './types';
+import { QUESTIONNAIRE_CONFIGS } from './data/questionnaireConfigs';
+import {
+  EvaluationDay,
+  EvaluationSubmission,
+  ParticipantRecord,
+  DayStatus,
+  DailyEvaluationResponse,
+} from './types';
 import { DataService } from './services/dataService';
 import { KirkpatrickPyramid } from './components/KirkpatrickPyramid';
 import { UserCheck, CheckCircle2, Award, Sparkles, ArrowRight, Clock } from 'lucide-react';
@@ -49,6 +56,18 @@ export default function App() {
     }
   }, []);
 
+  // Verify admin token on mount if isAdmin was persisted
+  useEffect(() => {
+    if (isAdmin) {
+      DataService.verifyAdminSession().then((valid) => {
+        if (!valid) {
+          setIsAdmin(false);
+          DataService.clearAdminToken();
+        }
+      });
+    }
+  }, [isAdmin]);
+
   useEffect(() => {
     syncWithServer();
 
@@ -67,12 +86,19 @@ export default function App() {
         if (event.days) setDays(event.days);
       } else if (event.type === 'DATABASE_RESET') {
         setSubmissions([]);
-        setDays(INITIAL_DAYS);
+        if (event.days) setDays(event.days);
         setParticipants([]);
+      } else if (event.type === 'SUBMISSION_DELETED') {
+        if (event.submissionId) {
+          setSubmissions((prev) => prev.filter((s) => s.id !== event.submissionId));
+        }
+        if (event.days) setDays(event.days);
+      } else if (event.type === 'DATABASE_RESTORED') {
+        syncWithServer();
       }
     });
 
-    // Real-time polling every 4 seconds to sync any multi-device submissions from server file base
+    // Real-time polling every 4 seconds to sync any multi-device submissions & Admin day locks from server
     const pollInterval = setInterval(() => {
       syncWithServer();
     }, 4000);
@@ -88,25 +114,22 @@ export default function App() {
     localStorage.setItem('auditeval_is_admin', isAdmin ? 'true' : 'false');
   }, [isAdmin]);
 
-  // Dynamic automatic day detection based on current date
+  // Dynamic automatic day detection — STRICTLY filtered to Admin-opened days ONLY
   const now = new Date();
   const currentDayOfMonth = now.getDate();
-  const todayMatchedDay = days.find((d) => {
+  const openDaysList = days.filter((d) => d.status === 'open');
+  const todayOpenDay = openDaysList.find((d) => {
     const m = d.dateStr.match(/^(\d+)/);
     return m ? parseInt(m[1], 10) === currentDayOfMonth : false;
   });
-  const openDaysList = days.filter((d) => d.status === 'open');
-  const activeAutoDay =
-    (todayMatchedDay && todayMatchedDay.status === 'open')
-      ? todayMatchedDay
-      : openDaysList.length > 0
-      ? openDaysList[0]
-      : todayMatchedDay || days[0];
+  const activeAutoDay = todayOpenDay || openDaysList[0] || null;
 
-  const selectedDay = days.find((d) => d.id === selectedDayId) || activeAutoDay;
+  const selectedDay = days.find((d) => d.id === selectedDayId) || activeAutoDay || days[0];
 
   // Dynamic calculations
-  const todaySubmitted = submissions.filter((s) => s.dayId === activeAutoDay.id).length;
+  const todaySubmitted = activeAutoDay
+    ? submissions.filter((s) => s.dayId === activeAutoDay.id).length
+    : 0;
   const totalSubmitted = submissions.length;
   const overallSatisfactionPercent =
     submissions.length > 0
@@ -120,15 +143,21 @@ export default function App() {
         submissions.length
       : 0;
 
-  // Handler: Open dedicated evaluation page (NOT a popup modal!)
+  // Handler: Open dedicated evaluation page ONLY if day is open by Admin
   const handleOpenEvaluation = (dayId?: string) => {
-    setSelectedDayId(dayId || activeAutoDay.id);
+    const targetId = dayId || activeAutoDay?.id;
+    if (!targetId) return;
+    const targetDay = days.find((d) => d.id === targetId);
+    if (!targetDay || targetDay.status !== 'open') return;
+    setSelectedDayId(targetDay.id);
     setActiveTab('evaluation');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Handler: Submission success from EvaluationPage
-  const handleSubmissionSuccess = async (newSubmission: EvaluationSubmission) => {
+  // Handler: Submission success from EvaluationPage (Server verifies day.status === 'open')
+  const handleSubmissionSuccess = async (
+    newSubmission: EvaluationSubmission
+  ): Promise<{ ok: boolean; error?: string }> => {
     // 1. Calculate updated days stats
     const updatedDays = days.map((d) => {
       if (d.id === newSubmission.dayId) {
@@ -189,27 +218,41 @@ export default function App() {
       updatedParticipants = [newRecord, ...participants];
     }
 
-    // 3. Update state
+    // 3. Save via DataService FIRST (Server checks Admin day status === 'open')
+    const res = await DataService.submitEvaluation(newSubmission, updatedDays, updatedParticipants);
+    if (!res.ok) {
+      await syncWithServer();
+      return { ok: false, error: res.error };
+    }
+
+    // 4. Update state with authoritative server response
     setSubmissions((prev) => [newSubmission, ...prev]);
-    setDays(updatedDays);
+    setDays(res.days || updatedDays);
     setParticipants(updatedParticipants);
-
-    // 4. Save via DataService with dual-layer persistence (File base + local)
-    await DataService.submitEvaluation(newSubmission, updatedDays, updatedParticipants);
+    return { ok: true };
   };
 
-  // Handler: Clear all data (Reset)
+  // Handler: Clear all data (Reset — preserves Admin's open/closed day statuses)
   const handleClearAllData = async () => {
-    await DataService.resetDatabase();
-    setDays(INITIAL_DAYS);
-    setSubmissions([]);
-    setParticipants([]);
+    const res = await DataService.resetDatabase();
+    if (res.unauthorized) {
+      setIsAdmin(false);
+      setShowAdminLoginModal(true);
+      return;
+    }
+    if (res.success) {
+      setDays(res.days || days.map((d) => ({ ...d, totalSubmitted: 0, averageScore: 0 })));
+      setSubmissions([]);
+      setParticipants([]);
+    }
   };
 
-  // Handler: Simulate 1 test submission (Day 16 or 17)
+  // Handler: Simulate 1 test submission for any prepared day (16-27 Nov)
   const handleSimulateTestSubmission = async (dayId: string = 'day-1') => {
-    const isDay16 = dayId === 'day-1';
-    const day = days.find((d) => d.id === dayId) || days[0];
+    const day = days.find((d) => d.id === dayId);
+    const config = QUESTIONNAIRE_CONFIGS[dayId];
+    if (!day || !config) return;
+
     const now = new Date();
     const thaiMonths = [
       'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -219,113 +262,143 @@ export default function App() {
       .getHours()
       .toString()
       .padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')} น.`;
-    const refCode = `STG-2569-D0${day.dayNumber}-${Math.floor(100 + Math.random() * 900)}`;
+    const refCode = `STG-2569-D${day.dayNumber.toString().padStart(2, '0')}-${Math.floor(100 + Math.random() * 900)}`;
 
-    let testSub: EvaluationSubmission;
-
-    if (isDay16) {
-      testSub = {
-        id: `sub-${Date.now()}`,
-        dayId: 'day-1',
-        dayTitle: 'ประเมินผลอบรมวันที่ 16 พ.ย. 2569',
-        timestamp: timestampStr,
-        referenceCode: refCode,
-        participantName: 'ผู้เข้าอบรม (ชำนาญการพิเศษ · ส่วนกลาง สตน.1)',
-        suggestions: 'เนื้อหาและการวิเคราะห์กรณีศึกษากฎหมายมีความชัดเจนและนำไปใช้จริงได้ดีมาก',
-        generalInfo: {
-          workArea: 'central',
-          bureauName: 'สตน.1',
-          position: 'special_professional',
-          roles: ['หัวหน้าทีม/หัวหน้างานตรวจสอบ', 'ผู้สอนงาน/ให้คำปรึกษาแนะนำการปฏิบัติงาน'],
-        },
-        day16Data: {
-          contentScore1: 5,
-          contentScore2: 5,
-          contentScore3: 5,
-          lecturerMorning1: 5,
-          lecturerMorning2: 5,
-          lecturerMorning3: 4,
-          lecturerAfternoon1: 5,
-          lecturerAfternoon2: 5,
-          lecturerAfternoon3: 5,
-          lecturerComment: 'วิทยากรถ่ายทอดความรู้ได้กระชับ ชัดเจน พร้อมตอบข้อซักถามได้ตรงจุด',
-          topic1Pre: 3,
-          topic1Post: 5,
-          topic2Pre: 2,
-          topic2Post: 5,
-          scenario1: 5,
-          scenario2: 1,
-          scenario3: 5,
-          baseline1: 5,
-          baseline2: 5,
-          baseline3: 5,
-          suggestions: 'ขอให้คงรูปแบบการฝึกปฏิบัติ Scenario แบบนี้ในหัวข้อต่อๆ ไป',
-        },
-        overallSatisfaction: 4.89,
-      };
-    } else {
-      testSub = {
-        id: `sub-${Date.now()}`,
-        dayId: 'day-2',
-        dayTitle: 'ประเมินผลอบรมวันที่ 17 พ.ย. 2569',
-        timestamp: timestampStr,
-        referenceCode: refCode,
-        participantName: 'ผู้เข้าอบรม (ชำนาญการ · ส่วนภูมิภาค ตภ.7)',
-        suggestions: 'เทคนิคการรวบรวมพยานหลักฐานมีประโยชน์อย่างมากกับการกำกับงานในพื้นที่',
-        generalInfo: {
-          workArea: 'regional',
-          bureauName: 'ตภ.7',
-          position: 'senior_professional',
-          roles: ['ปฏิบัติงานตรวจสอบ', 'ผู้ช่วยหรือผู้สอบทานงานตรวจสอบ'],
-        },
-        day17Data: {
-          contentScore1: 5,
-          contentScore2: 5,
-          contentScore3: 5,
-          lecturerFullDay1: 5,
-          lecturerFullDay2: 5,
-          lecturerFullDay3: 5,
-          lecturerComment: 'ตัวอย่างคดีและการรวบรวมหลักฐานพยานทำให้เห็นภาพขั้นตอนชัดเจน',
-          topic1Pre: 3,
-          topic1Post: 5,
-          readiness1: 5,
-          readiness2: 5,
-          readiness3: 5,
-          baseline1: 5,
-          baseline2: 5,
-          baseline3: 5,
-          suggestions: 'อยากให้มีเอกสารเช็คลิสต์พยานหลักฐานแจกจ่ายเพิ่มเติม',
-        },
-        overallSatisfaction: 5.0,
-      };
+    const lecturerScores: Record<string, { q4: number; q5: number; q6: number }> = {};
+    for (const session of config.lecturerSessions) {
+      lecturerScores[session.id] = { q4: 5, q5: 5, q6: 5 };
     }
+
+    const learningTopics: Record<string, { pre: number; post: number }> = {};
+    for (const topic of config.learningTopics) {
+      learningTopics[topic.id] = { pre: 3, post: 5 };
+    }
+
+    const dailyData: DailyEvaluationResponse = {
+      contentScore1: 5,
+      contentScore2: 5,
+      contentScore3: 5,
+      lecturerScores,
+      lecturerComment: 'วิทยากรถ่ายทอดความรู้และกรณีศึกษาได้อย่างชัดเจน เป็นประโยชน์อย่างยิ่ง',
+      overallProject: config.hasOverallProjectEval
+        ? { q8: 5, q9: 5, q10: 5, q11: 5, q12: 5, q13: 5, q14: 5, q15: 5 }
+        : undefined,
+      learningTopics,
+      readiness: config.hasReadiness ? { r1: 5, r2: 5, r3: 5 } : undefined,
+      baseline1: 5,
+      baseline2: 5,
+      baseline3: 5,
+      suggestions: `ข้อมูลทดสอบสำหรับ${day.dateStr} เนื้อหาและตัวอย่างสอดคล้องกับการปฏิบัติงาน`,
+    };
+
+    const testSub: EvaluationSubmission = {
+      id: `sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      dayId: day.id,
+      dayTitle: day.title,
+      timestamp: timestampStr,
+      referenceCode: refCode,
+      generalInfo: {
+        workArea: 'central',
+        bureauName: 'สตน.1',
+        position: 'special_professional',
+        roles: ['หัวหน้าทีม/หัวหน้างานตรวจสอบ', 'ผู้สอนงาน/ให้คำปรึกษาแนะนำการปฏิบัติงาน'],
+      },
+      participantName: 'ผู้เข้าอบรม (ชำนาญการพิเศษ · ส่วนกลาง สตน.1)',
+      suggestions: dailyData.suggestions,
+      dailyData,
+      ...(dayId === 'day-1'
+        ? {
+            day16Data: {
+              contentScore1: 5,
+              contentScore2: 5,
+              contentScore3: 5,
+              lecturerMorning1: 5,
+              lecturerMorning2: 5,
+              lecturerMorning3: 5,
+              lecturerAfternoon1: 5,
+              lecturerAfternoon2: 5,
+              lecturerAfternoon3: 5,
+              lecturerComment: dailyData.lecturerComment,
+              topic1Pre: 3,
+              topic1Post: 5,
+              topic2Pre: 3,
+              topic2Post: 5,
+              baseline1: 5,
+              baseline2: 5,
+              baseline3: 5,
+              suggestions: dailyData.suggestions,
+            },
+          }
+        : {}),
+      ...(dayId === 'day-2'
+        ? {
+            day17Data: {
+              contentScore1: 5,
+              contentScore2: 5,
+              contentScore3: 5,
+              lecturerFullDay1: 5,
+              lecturerFullDay2: 5,
+              lecturerFullDay3: 5,
+              lecturerComment: dailyData.lecturerComment,
+              topic1Pre: 3,
+              topic1Post: 5,
+              readiness1: 5,
+              readiness2: 5,
+              readiness3: 5,
+              baseline1: 5,
+              baseline2: 5,
+              baseline3: 5,
+              suggestions: dailyData.suggestions,
+            },
+          }
+        : {}),
+      overallSatisfaction: 5.0,
+    };
 
     await handleSubmissionSuccess(testSub);
   };
 
   // Handler: Toggle day status (open <-> closed)
   const handleToggleDayStatus = async (dayId: string) => {
-    const nextDays: EvaluationDay[] = days.map((d) => {
-      if (d.id === dayId) {
-        const nextStatus: DayStatus = d.status === 'open' ? 'closed' : 'open';
-        return {
-          ...d,
-          status: nextStatus,
-        };
-      }
-      return d;
-    });
+    const current = days.find((d) => d.id === dayId);
+    if (!current) return;
+    const nextStatus: DayStatus = current.status === 'open' ? 'closed' : 'open';
+    await handleSetDayStatus(dayId, nextStatus);
+  };
 
-    setDays(nextDays);
-    await DataService.updateDayStatus(nextDays);
+  // Handler: Admin explicit 3-state day status control
+  const handleSetDayStatus = async (dayId: string, status: DayStatus) => {
+    const res = await DataService.setDayStatus(dayId, status);
+    if (res.unauthorized) {
+      setIsAdmin(false);
+      setShowAdminLoginModal(true);
+      return;
+    }
+    if (res.success && res.days) {
+      setDays(res.days);
+    }
+  };
+
+  // Handler: Close all open days immediately (Admin only)
+  const handleCloseAllDays = async () => {
+    const res = await DataService.closeAllDays();
+    if (res.unauthorized) {
+      setIsAdmin(false);
+      setShowAdminLoginModal(true);
+      return;
+    }
+    if (res.success && res.days) {
+      setDays(res.days);
+    }
   };
 
   // Handler: Request Admin page
-  const handleRequestAdmin = () => {
-    if (isAdmin) {
+  const handleRequestAdmin = async () => {
+    if (isAdmin && (await DataService.verifyAdminSession())) {
       setActiveTab('admin');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      setIsAdmin(false);
       setShowAdminLoginModal(true);
     }
   };
@@ -339,10 +412,32 @@ export default function App() {
   };
 
   // Handler: Admin Logout
-  const handleAdminLogout = () => {
+  const handleAdminLogout = async () => {
+    await DataService.adminLogout();
     setIsAdmin(false);
     setActiveTab('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handler: Delete a submission (Admin only)
+  const handleDeleteSubmission = async (submissionId: string) => {
+    const res = await DataService.deleteSubmission(submissionId);
+    if (res.unauthorized) {
+      setIsAdmin(false);
+      setShowAdminLoginModal(true);
+      return;
+    }
+    setSubmissions((prev) => prev.filter((s) => s.id !== submissionId));
+    await syncWithServer();
+  };
+
+  // Handler: Restore database from JSON
+  const handleRestoreDatabase = async (databaseData: any): Promise<boolean> => {
+    const ok = await DataService.restoreDatabase(databaseData);
+    if (ok) {
+      await syncWithServer();
+    }
+    return ok;
   };
 
   // Check if current user has submitted selected day
@@ -452,7 +547,7 @@ export default function App() {
                 totalSubmitted={totalSubmitted}
                 overallSatisfactionPercent={overallSatisfactionPercent}
                 averageScoreOutOf5={averageScoreOutOf5}
-                onFilterActiveToday={() => handleOpenEvaluation(activeAutoDay.id)}
+                onFilterActiveToday={activeAutoDay ? () => handleOpenEvaluation(activeAutoDay.id) : undefined}
               />
 
               <DailyEvaluationSection
@@ -482,26 +577,36 @@ export default function App() {
               </section>
             </main>
 
-            {/* Mobile Floating Sticky Bar for 1-Tap Evaluation Access */}
+            {/* Mobile Floating Sticky Bar for 1-Tap Evaluation Access (Only active when Admin opened a day) */}
             <div className="fixed bottom-0 inset-x-0 bg-navy-950/95 backdrop-blur-md border-t-2 border-lime/80 py-2.5 px-4 z-40 md:hidden shadow-2xl flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[10px] text-lime font-kanit font-bold uppercase tracking-wider flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-lime animate-ping" />
-                  แบบประเมินประจำวัน:
-                </div>
-                <div className="text-xs text-white font-kanit font-semibold truncate">
-                  {activeAutoDay.dayLabel} · {activeAutoDay.dateStr}
-                </div>
-              </div>
+              {activeAutoDay ? (
+                <>
+                  <div className="min-w-0">
+                    <div className="text-[10px] text-lime font-kanit font-bold uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-lime animate-ping" />
+                      แบบประเมินประจำวัน:
+                    </div>
+                    <div className="text-xs text-white font-kanit font-semibold truncate">
+                      {activeAutoDay.dayLabel} · {activeAutoDay.dateStr}
+                    </div>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => handleOpenEvaluation(activeAutoDay.id)}
-                className="px-4 py-2 bg-lime hover:bg-lime-dark text-navy-950 text-xs font-kanit font-bold rounded-xl shadow-md active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
-              >
-                <span>ทำแบบประเมิน</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEvaluation(activeAutoDay.id)}
+                    className="px-4 py-2 bg-lime hover:bg-lime-dark text-navy-950 text-xs font-kanit font-bold rounded-xl shadow-md active:scale-95 transition-all cursor-pointer shrink-0 flex items-center gap-1.5"
+                  >
+                    <span>ทำแบบประเมิน</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <div className="w-full text-center py-0.5">
+                  <div className="text-xs text-slate-300 font-kanit font-medium">
+                    ขณะนี้ปิดรับการทำแบบประเมินชั่วคราว (ควบคุมโดยผู้ดูแลระบบ)
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -547,6 +652,10 @@ export default function App() {
               onClearAllData={handleClearAllData}
               onSimulateTestSubmission={handleSimulateTestSubmission}
               onToggleDayStatus={handleToggleDayStatus}
+              onSetDayStatus={handleSetDayStatus}
+              onCloseAllDays={handleCloseAllDays}
+              onDeleteSubmission={handleDeleteSubmission}
+              onRestoreDatabase={handleRestoreDatabase}
               onLogout={handleAdminLogout}
             />
           </main>

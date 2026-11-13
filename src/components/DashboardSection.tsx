@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
 import { EvaluationDay, EvaluationSubmission } from '../types';
+import {
+  QUESTIONNAIRE_CONFIGS,
+  OVERALL_PROJECT_QUESTIONS,
+  READINESS_QUESTIONS,
+  CONTENT_QUESTIONS,
+  BASELINE_QUESTIONS,
+  normalizeSubmissionDailyData,
+} from '../data/questionnaireConfigs';
 
 interface DashboardSectionProps {
   days: EvaluationDay[];
@@ -12,28 +20,25 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
   submissions,
   onBackToHome,
 }) => {
-  const [selectedView, setSelectedView] = useState<'overall' | 'day-1' | 'day-2'>('overall');
+  const [selectedView, setSelectedView] = useState<string>('overall');
 
-  const day16Subs = submissions.filter((s) => s.dayId === 'day-1');
-  const day17Subs = submissions.filter((s) => s.dayId === 'day-2');
+  const preparedDays = days.filter((d) => !!QUESTIONNAIRE_CONFIGS[d.id]);
 
   const currentSubs =
     selectedView === 'overall'
       ? submissions
-      : selectedView === 'day-1'
-      ? day16Subs
-      : day17Subs;
+      : submissions.filter((s) => s.dayId === selectedView);
 
   const hasData = currentSubs.length > 0;
+  const activeConfig = selectedView !== 'overall' ? QUESTIONNAIRE_CONFIGS[selectedView] : undefined;
 
-  // Helper for averages
   const calcAvg = (
     list: EvaluationSubmission[],
     getter: (s: EvaluationSubmission) => number | undefined
   ) => {
     const valid = list
       .map(getter)
-      .filter((v): v is number => typeof v === 'number' && !isNaN(v));
+      .filter((v): v is number => typeof v === 'number' && !isNaN(v) && v > 0);
     if (valid.length === 0) return 0;
     return Number((valid.reduce((a, b) => a + b, 0) / valid.length).toFixed(2));
   };
@@ -51,6 +56,30 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
   // Overall metric
   const overallAvg = calcAvg(currentSubs, (s) => s.overallSatisfaction);
   const overallPercent = Math.round((overallAvg / 5) * 100);
+
+  // Cross-day Knowledge Gain & Baseline summary for overall tab
+  const allNormalized = currentSubs
+    .map((s) => ({ sub: s, data: normalizeSubmissionDailyData(s) }))
+    .filter((x): x is { sub: EvaluationSubmission; data: NonNullable<ReturnType<typeof normalizeSubmissionDailyData>> } => !!x.data);
+
+  const overallGainAvg = (() => {
+    const gains: number[] = [];
+    for (const item of allNormalized) {
+      for (const topic of Object.values(item.data.learningTopics || {})) {
+        if (topic.pre > 0 && topic.post > 0) {
+          gains.push(topic.post - topic.pre);
+        }
+      }
+    }
+    if (gains.length === 0) return 0;
+    return Number((gains.reduce((a, b) => a + b, 0) / gains.length).toFixed(2));
+  })();
+
+  const overallBaselineAvg = calcAvg(currentSubs, (s) => {
+    const d = normalizeSubmissionDailyData(s);
+    if (!d) return undefined;
+    return (d.baseline1 + d.baseline2 + d.baseline3) / 3;
+  });
 
   return (
     <div className="space-y-8">
@@ -70,7 +99,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
               แดชบอร์ดสรุปผลการประเมินโครงการ
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 font-sarabun mt-1">
-              หลักสูตร "การตรวจสอบการปฏิบัติตามกฎหมาย ระดับกลาง" · ข้อมูลอัปเดตแบบ Real-time
+              หลักสูตร &quot;การตรวจสอบการปฏิบัติตามกฎหมาย ระดับกลาง&quot; · ข้อมูลอัปเดตแบบ Real-time
             </p>
           </div>
 
@@ -85,7 +114,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
         </div>
       </div>
 
-      {/* Sub-view Selector Tabs */}
+      {/* Sub-view Selector Tabs (All Prepared Days) */}
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
         <button
           onClick={() => setSelectedView('overall')}
@@ -98,27 +127,22 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
           ภาพรวมทุกวัน ({submissions.length} ฉบับ)
         </button>
 
-        <button
-          onClick={() => setSelectedView('day-1')}
-          className={`px-4 py-2 rounded-lg font-kanit text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-            selectedView === 'day-1'
-              ? 'bg-navy-900 text-lime shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          วันที่ 16 พ.ย. 2569 (ประเด็นกฎหมาย/แนวปฏิบัติ) · {day16Subs.length} ฉบับ
-        </button>
-
-        <button
-          onClick={() => setSelectedView('day-2')}
-          className={`px-4 py-2 rounded-lg font-kanit text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-            selectedView === 'day-2'
-              ? 'bg-navy-900 text-lime shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          วันที่ 17 พ.ย. 2569 (พยานหลักฐาน/Readiness) · {day17Subs.length} ฉบับ
-        </button>
+        {preparedDays.map((d) => {
+          const dayCount = submissions.filter((s) => s.dayId === d.id).length;
+          return (
+            <button
+              key={d.id}
+              onClick={() => setSelectedView(d.id)}
+              className={`px-3.5 py-2 rounded-lg font-kanit text-xs font-semibold transition-all cursor-pointer ${
+                selectedView === d.id
+                  ? 'bg-navy-900 text-lime shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              {d.dateStr} ({dayCount})
+            </button>
+          );
+        })}
       </div>
 
       {!hasData ? (
@@ -212,322 +236,248 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
             </div>
           </div>
 
-          {/* VIEW: DAY 16 SPECIFIC STRUCTURE */}
-          {selectedView === 'day-1' && (
+          {/* VIEW: DYNAMIC PER-DAY VIEW (Any of the 9 prepared days) */}
+          {activeConfig && (
             <div className="space-y-6">
               {/* Level 1 Reaction */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                  <h3 className="font-kanit font-bold text-lg text-navy-900">
-                    Level 1: Reaction (ความพึงพอใจต่อเนื้อหาและวิทยากร 16 พ.ย. 2569)
-                  </h3>
-                  <span className="text-xs font-kanit text-slate-400">เต็ม 5.00 คะแนน</span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Content Score */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                    <h4 className="font-kanit font-semibold text-sm text-navy-900">
-                      ด้านเนื้อหาวิชา
-                    </h4>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      1. ความสอดคล้องกับบทบาท: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.contentScore1)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      2. ความเหมาะสมกับกฎหมาย/ระเบียบ สตง.: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.contentScore2)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      3. การนำไปประยุกต์ใช้กำกับงาน: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.contentScore3)}</span>
-                    </p>
-                  </div>
-
-                  {/* Morning Lecturer */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                    <h4 className="font-kanit font-semibold text-sm text-navy-900">
-                      วิทยากรประจำวัน (ภาคเช้า)
-                    </h4>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      4. ความรู้ ความเชี่ยวชาญ: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerMorning1)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      5. ถ่ายทอดเนื้อหาชัดเจน: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerMorning2)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      6. กระตุ้นแลกเปลี่ยน/ตอบข้อซักถาม: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerMorning3)}</span>
-                    </p>
-                  </div>
-
-                  {/* Afternoon Lecturer */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                    <h4 className="font-kanit font-semibold text-sm text-navy-900">
-                      วิทยากรประจำวัน (ภาคบ่าย)
-                    </h4>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      4. ความรู้ ความเชี่ยวชาญ: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerAfternoon1)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      5. ถ่ายทอดเนื้อหาชัดเจน: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerAfternoon2)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      6. กระตุ้นแลกเปลี่ยน/ตอบข้อซักถาม: <span className="font-bold text-slate-900">{calcAvg(day16Subs, (s) => s.day16Data?.lecturerAfternoon3)}</span>
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Level 2 Learning: Pre/Post & optional Scenario */}
-              {day16Subs.some((s) => (s.day16Data?.scenario1 ?? 0) > 0) ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Pre / Post Gain */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                    <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                      3.1 วัดผลการเรียนรู้ ก่อน-หลัง อบรม (Knowledge Gain)
-                    </h3>
-
-                    {/* Topic 1 */}
-                    <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                      <p className="text-xs font-kanit font-semibold text-slate-800">
-                        หัวข้อ 1: ทบทวนสาระสำคัญความรู้กฎหมายและแนวปฏิบัติ
-                      </p>
-                      <div className="flex items-center justify-between text-xs font-sarabun pt-1">
-                        <span>ก่อนอบรม: <b className="text-slate-700">{calcAvg(day16Subs, (s) => s.day16Data?.topic1Pre)}</b> / 5</span>
-                        <span>หลังอบรม: <b className="text-emerald-700">{calcAvg(day16Subs, (s) => s.day16Data?.topic1Post)}</b> / 5</span>
-                        <span className="font-kanit font-bold text-xs text-lime-dark bg-lime/20 px-2 py-0.5 rounded">
-                          +{Number((calcAvg(day16Subs, (s) => s.day16Data?.topic1Post) - calcAvg(day16Subs, (s) => s.day16Data?.topic1Pre)).toFixed(2))} คะแนน
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Topic 2 */}
-                    <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-lg border border-slate-200">
-                      <p className="text-xs font-kanit font-semibold text-slate-800">
-                        หัวข้อ 2: ตรวจสอบการปฏิบัติตามกฎหมายเพื่อกำกับ แนะนำ
-                      </p>
-                      <div className="flex items-center justify-between text-xs font-sarabun pt-1">
-                        <span>ก่อนอบรม: <b className="text-slate-700">{calcAvg(day16Subs, (s) => s.day16Data?.topic2Pre)}</b> / 5</span>
-                        <span>หลังอบรม: <b className="text-emerald-700">{calcAvg(day16Subs, (s) => s.day16Data?.topic2Post)}</b> / 5</span>
-                        <span className="font-kanit font-bold text-xs text-lime-dark bg-lime/20 px-2 py-0.5 rounded">
-                          +{Number((calcAvg(day16Subs, (s) => s.day16Data?.topic2Post) - calcAvg(day16Subs, (s) => s.day16Data?.topic2Pre)).toFixed(2))} คะแนน
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3.2 Scenario-based Assessment */}
-                  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                    <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                      3.2 การประเมินผ่านสถานการณ์จำลอง (Scenario Assessment)
+                <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-kanit font-bold text-lg text-navy-900">
+                      Level 1: Reaction (ความพึงพอใจต่อเนื้อหาและวิทยากร · {activeConfig.dateFullLabel})
                     </h3>
                     <p className="text-xs text-slate-500 font-sarabun">
-                      คะแนนแนวโน้มความเหมาะสมในการปฏิบัติในฐานะหัวหน้างาน (1-5)
+                      หัวข้อวิชา: {activeConfig.shortTopic}
                     </p>
-
-                    <div className="space-y-2.5 text-xs font-sarabun">
-                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                        <span className="text-slate-700">1. สั่งการกำหนดประเด็นเพิ่มและวางแผนสอบถ้อยคำพยาน</span>
-                        <span className="font-kanit font-bold text-emerald-700">{calcAvg(day16Subs, (s) => s.day16Data?.scenario1)} / 5</span>
-                      </div>
-                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                        <span className="text-slate-700">2. อนุมัติผ่านรายงานตามที่เสนอ (ลดภาระงาน)</span>
-                        <span className="font-kanit font-bold text-slate-600">{calcAvg(day16Subs, (s) => s.day16Data?.scenario2)} / 5</span>
-                      </div>
-                      <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                        <span className="text-slate-700">3. แนะนำเทคนิคทางจิตวิทยาในการสอบถ้อยคำ</span>
-                        <span className="font-kanit font-bold text-emerald-700">{calcAvg(day16Subs, (s) => s.day16Data?.scenario3)} / 5</span>
-                      </div>
-                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                  <div className="border-b border-slate-100 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                      <h3 className="font-kanit font-bold text-base sm:text-lg text-navy-900">
-                        Level 2: Learning (วัดผลสัมฤทธิ์การเรียนรู้ ก่อน-หลัง การฝึกอบรม 16 พ.ย.)
-                      </h3>
-                      <p className="text-xs text-slate-500 font-sarabun mt-0.5">
-                        เปรียบเทียบค่าเฉลี่ยระดับความรู้ความเข้าใจ ก่อนเริ่มอบรม (Pre) และ หลังจบการอบรม (Post)
-                      </p>
-                    </div>
-                    <span className="text-xs font-kanit font-bold text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300 self-start sm:self-auto">
-                      Knowledge Gain ชัดเจน
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Topic 1 */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                      <span className="inline-block px-2.5 py-0.5 bg-navy-900 text-lime text-xs font-kanit font-bold rounded">
-                        หัวข้อที่ 1
-                      </span>
-                      <h4 className="font-kanit font-semibold text-sm text-navy-900 leading-snug">
-                        ทบทวนสาระสำคัญความรู้กฎหมายและแนวปฏิบัติ
-                      </h4>
-                      <div className="pt-2 flex items-center justify-between text-xs font-sarabun border-t border-slate-200/80">
-                        <span>ก่อน: <b className="text-amber-800">{calcAvg(day16Subs, (s) => s.day16Data?.topic1Pre)}</b> / 5</span>
-                        <span>หลัง: <b className="text-emerald-800">{calcAvg(day16Subs, (s) => s.day16Data?.topic1Post)}</b> / 5</span>
-                        <span className="font-kanit font-bold text-xs text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">
-                          +{Number((calcAvg(day16Subs, (s) => s.day16Data?.topic1Post) - calcAvg(day16Subs, (s) => s.day16Data?.topic1Pre)).toFixed(2))} ระดับ
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Topic 2 */}
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                      <span className="inline-block px-2.5 py-0.5 bg-navy-900 text-lime text-xs font-kanit font-bold rounded">
-                        หัวข้อที่ 2
-                      </span>
-                      <h4 className="font-kanit font-semibold text-sm text-navy-900 leading-snug">
-                        ตรวจสอบการปฏิบัติตามกฎหมายเพื่อกำกับ แนะนำ
-                      </h4>
-                      <div className="pt-2 flex items-center justify-between text-xs font-sarabun border-t border-slate-200/80">
-                        <span>ก่อน: <b className="text-amber-800">{calcAvg(day16Subs, (s) => s.day16Data?.topic2Pre)}</b> / 5</span>
-                        <span>หลัง: <b className="text-emerald-800">{calcAvg(day16Subs, (s) => s.day16Data?.topic2Post)}</b> / 5</span>
-                        <span className="font-kanit font-bold text-xs text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">
-                          +{Number((calcAvg(day16Subs, (s) => s.day16Data?.topic2Post) - calcAvg(day16Subs, (s) => s.day16Data?.topic2Pre)).toFixed(2))} ระดับ
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Level 3 & 4 Baseline */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-3">
-                <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                  Level 3 & Level 4: ข้อมูลพื้นฐานสำหรับติดตาม (Baseline)
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sarabun">
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">ความมั่นใจนำไปปรับใช้/สอนงาน:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day16Subs, (s) => s.day16Data?.baseline1)} / 5.00</p>
-                  </div>
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">ช่วยยกระดับมาตรฐานทีมงาน:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day16Subs, (s) => s.day16Data?.baseline2)} / 5.00</p>
-                  </div>
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">คาดว่าจะนำไปปรับใช้จริง:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day16Subs, (s) => s.day16Data?.baseline3)} / 5.00</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* VIEW: DAY 17 SPECIFIC STRUCTURE */}
-          {selectedView === 'day-2' && (
-            <div className="space-y-6">
-              {/* Level 1 Reaction */}
-              <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
-                  <h3 className="font-kanit font-bold text-lg text-navy-900">
-                    Level 1: Reaction (ความพึงพอใจต่อเนื้อหาและวิทยากร 17 พ.ย. 2569)
-                  </h3>
                   <span className="text-xs font-kanit text-slate-400">เต็ม 5.00 คะแนน</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div
+                  className={`grid grid-cols-1 ${
+                    activeConfig.lecturerSessions.length > 1 ? 'md:grid-cols-3' : 'md:grid-cols-2'
+                  } gap-4`}
+                >
                   {/* Content Score */}
                   <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                     <h4 className="font-kanit font-semibold text-sm text-navy-900">
                       ด้านเนื้อหาวิชาประจำวัน
                     </h4>
                     <p className="text-xs text-slate-600 font-sarabun">
-                      1. ความสอดคล้องกับบทบาท: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.contentScore1)}</span>
+                      1. ความสอดคล้องกับบทบาท:{' '}
+                      <span className="font-bold text-slate-900">
+                        {calcAvg(currentSubs, (s) => normalizeSubmissionDailyData(s)?.contentScore1)}
+                      </span>
                     </p>
                     <p className="text-xs text-slate-600 font-sarabun">
-                      2. ความเหมาะสมกับกฎหมาย/ระเบียบ สตง.: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.contentScore2)}</span>
+                      2. ความเหมาะสมกับกฎหมาย/ระเบียบ สตง.:{' '}
+                      <span className="font-bold text-slate-900">
+                        {calcAvg(currentSubs, (s) => normalizeSubmissionDailyData(s)?.contentScore2)}
+                      </span>
                     </p>
                     <p className="text-xs text-slate-600 font-sarabun">
-                      3. การนำไปประยุกต์ใช้กำกับงาน: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.contentScore3)}</span>
+                      3. การนำไปประยุกต์ใช้กำกับงาน:{' '}
+                      <span className="font-bold text-slate-900">
+                        {calcAvg(currentSubs, (s) => normalizeSubmissionDailyData(s)?.contentScore3)}
+                      </span>
                     </p>
                   </div>
 
-                  {/* Full Day Lecturer */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
-                    <h4 className="font-kanit font-semibold text-sm text-navy-900">
-                      วิทยากรประจำวัน (ทั้งวัน)
-                    </h4>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      4. ความรู้ ความเชี่ยวชาญ: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.lecturerFullDay1)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      5. ถ่ายทอดเนื้อหาชัดเจน: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.lecturerFullDay2)}</span>
-                    </p>
-                    <p className="text-xs text-slate-600 font-sarabun">
-                      6. กระตุ้นแลกเปลี่ยน/ตอบข้อซักถาม: <span className="font-bold text-slate-900">{calcAvg(day17Subs, (s) => s.day17Data?.lecturerFullDay3)}</span>
-                    </p>
-                  </div>
+                  {/* Lecturer Sessions */}
+                  {activeConfig.lecturerSessions.map((session) => (
+                    <div
+                      key={session.id}
+                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2"
+                    >
+                      <div>
+                        <h4 className="font-kanit font-semibold text-sm text-navy-900">
+                          ด้านวิทยากร ({session.sessionLabel})
+                        </h4>
+                        {session.speakerName && (
+                          <p className="text-[11px] font-sarabun text-emerald-700 font-semibold">
+                            {session.speakerName}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 font-sarabun">
+                        4. ความรู้ ความเชี่ยวชาญ:{' '}
+                        <span className="font-bold text-slate-900">
+                          {calcAvg(
+                            currentSubs,
+                            (s) => normalizeSubmissionDailyData(s)?.lecturerScores[session.id]?.q4
+                          )}
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-600 font-sarabun">
+                        5. ถ่ายทอดเนื้อหาชัดเจน:{' '}
+                        <span className="font-bold text-slate-900">
+                          {calcAvg(
+                            currentSubs,
+                            (s) => normalizeSubmissionDailyData(s)?.lecturerScores[session.id]?.q5
+                          )}
+                        </span>
+                      </p>
+                      <p className="text-xs text-slate-600 font-sarabun">
+                        6. กระตุ้นแลกเปลี่ยน/ตอบข้อซักถาม:{' '}
+                        <span className="font-bold text-slate-900">
+                          {calcAvg(
+                            currentSubs,
+                            (s) => normalizeSubmissionDailyData(s)?.lecturerScores[session.id]?.q6
+                          )}
+                        </span>
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Level 2 Learning: Pre/Post & Capability Readiness */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Pre / Post Gain */}
+              {/* Day 27 Only: Overall Project Evaluation (Items 8-15) */}
+              {activeConfig.hasOverallProjectEval && (
                 <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+                  <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                    <h3 className="font-kanit font-bold text-lg text-navy-900">
+                      ความพึงพอใจต่อโครงการฝึกอบรมในภาพรวม (ข้อ 8–15)
+                    </h3>
+                    <span className="text-xs font-kanit font-semibold text-navy-900 bg-lime/25 px-2.5 py-0.5 rounded">
+                      ประเมินสรุปจบโครงการ
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                      <h4 className="font-kanit font-semibold text-sm text-navy-900">
+                        ด้านเนื้อหาสาระทั้งโครงการ (ข้อ 8–11)
+                      </h4>
+                      {OVERALL_PROJECT_QUESTIONS.filter((q) => q.category === 'content').map((q) => (
+                        <div key={q.key} className="flex items-start justify-between gap-2 text-xs font-sarabun">
+                          <span className="text-slate-600">{q.label}</span>
+                          <span className="font-kanit font-bold text-navy-900 shrink-0">
+                            {calcAvg(
+                              currentSubs,
+                              (s) => normalizeSubmissionDailyData(s)?.overallProject?.[q.key]
+                            ).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
+                      <h4 className="font-kanit font-semibold text-sm text-navy-900">
+                        ด้านการบริหารจัดการโครงการ (ข้อ 12–15)
+                      </h4>
+                      {OVERALL_PROJECT_QUESTIONS.filter((q) => q.category === 'management').map((q) => (
+                        <div key={q.key} className="flex items-start justify-between gap-2 text-xs font-sarabun">
+                          <span className="text-slate-600">{q.label}</span>
+                          <span className="font-kanit font-bold text-navy-900 shrink-0">
+                            {calcAvg(
+                              currentSubs,
+                              (s) => normalizeSubmissionDailyData(s)?.overallProject?.[q.key]
+                            ).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Level 2 Learning: 3.1 Pre/Post + 3.2 Readiness */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div
+                  className={`bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4 ${
+                    !activeConfig.hasReadiness ? 'lg:col-span-2' : ''
+                  }`}
+                >
                   <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
                     3.1 วัดผลการเรียนรู้ ก่อน-หลัง อบรม (Knowledge Gain)
                   </h3>
 
-                  <div className="space-y-1.5 bg-slate-50 p-4 rounded-lg border border-slate-200">
-                    <p className="text-xs font-kanit font-semibold text-slate-800">
-                      หัวข้อ: เทคนิคและทักษะการรวบรวมพยานหลักฐาน (กรณีมีความเสียหาย/ทุจริต/จงใจ)
+                  <div
+                    className={`grid grid-cols-1 ${
+                      !activeConfig.hasReadiness && activeConfig.learningTopics.length > 1
+                        ? 'md:grid-cols-2'
+                        : ''
+                    } gap-3`}
+                  >
+                    {activeConfig.learningTopics.map((topic, idx) => {
+                      const preAvg = calcAvg(
+                        currentSubs,
+                        (s) => normalizeSubmissionDailyData(s)?.learningTopics[topic.id]?.pre
+                      );
+                      const postAvg = calcAvg(
+                        currentSubs,
+                        (s) => normalizeSubmissionDailyData(s)?.learningTopics[topic.id]?.post
+                      );
+                      const diff = Number((postAvg - preAvg).toFixed(2));
+                      return (
+                        <div
+                          key={topic.id}
+                          className="space-y-1.5 bg-slate-50 p-3.5 rounded-lg border border-slate-200"
+                        >
+                          <p className="text-xs font-kanit font-semibold text-slate-800 leading-snug">
+                            หัวข้อ {idx + 1}: {topic.title}
+                          </p>
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-sarabun pt-1.5 border-t border-slate-200/80">
+                            <span>
+                              ก่อนอบรม: <b className="text-amber-800">{preAvg}</b> / 5
+                            </span>
+                            <span>
+                              หลังอบรม: <b className="text-emerald-700">{postAvg}</b> / 5
+                            </span>
+                            <span className="font-kanit font-bold text-xs text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-200">
+                              {diff >= 0 ? `+${diff}` : diff} คะแนน
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {activeConfig.hasReadiness && (
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
+                    <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
+                      3.2 ระดับความสามารถและความพร้อม (Capability &amp; Readiness)
+                    </h3>
+                    <p className="text-xs text-slate-500 font-sarabun">
+                      คะแนนประเมินแนวโน้มการปฏิบัติในฐานะหัวหน้างาน (1-5)
                     </p>
-                    <div className="flex items-center justify-between text-xs font-sarabun pt-2">
-                      <span>ก่อนอบรม: <b className="text-slate-700">{calcAvg(day17Subs, (s) => s.day17Data?.topic1Pre)}</b> / 5</span>
-                      <span>หลังอบรม: <b className="text-emerald-700">{calcAvg(day17Subs, (s) => s.day17Data?.topic1Post)}</b> / 5</span>
-                      <span className="font-kanit font-bold text-xs text-lime-dark bg-lime/20 px-2 py-0.5 rounded">
-                        +{Number((calcAvg(day17Subs, (s) => s.day17Data?.topic1Post) - calcAvg(day17Subs, (s) => s.day17Data?.topic1Pre)).toFixed(2))} คะแนน
-                      </span>
+
+                    <div className="space-y-2.5 text-xs font-sarabun">
+                      {READINESS_QUESTIONS.map((rq) => (
+                        <div
+                          key={rq.key}
+                          className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between gap-3"
+                        >
+                          <span className="text-slate-700 leading-snug">{rq.label}</span>
+                          <span className="font-kanit font-bold text-emerald-700 shrink-0">
+                            {calcAvg(
+                              currentSubs,
+                              (s) => normalizeSubmissionDailyData(s)?.readiness?.[rq.key]
+                            )}{' '}
+                            / 5
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </div>
-
-                {/* 3.2 Capability & Readiness Assessment */}
-                <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
-                  <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                    3.2 ระดับความสามารถและความพร้อม (Capability & Readiness)
-                  </h3>
-                  <p className="text-xs text-slate-500 font-sarabun">
-                    คะแนนประเมินแนวโน้มการปฏิบัติในฐานะหัวหน้างาน (1-5)
-                  </p>
-
-                  <div className="space-y-2.5 text-xs font-sarabun">
-                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                      <span className="text-slate-700">1. กำหนดกรอบกำกับความถูกต้องและครบถ้วน</span>
-                      <span className="font-kanit font-bold text-emerald-700">{calcAvg(day17Subs, (s) => s.day17Data?.readiness1)} / 5</span>
-                    </div>
-                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                      <span className="text-slate-700">2. ให้คำปรึกษาสอนงานเพื่อป้องกันข้อผิดพลาด</span>
-                      <span className="font-kanit font-bold text-emerald-700">{calcAvg(day17Subs, (s) => s.day17Data?.readiness2)} / 5</span>
-                    </div>
-                    <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                      <span className="text-slate-700">3. ตัดสินใจทางวิชาชีพรอบคอบและมีหลักการ</span>
-                      <span className="font-kanit font-bold text-emerald-700">{calcAvg(day17Subs, (s) => s.day17Data?.readiness3)} / 5</span>
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Level 3 & 4 Baseline */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-3">
                 <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                  Level 3 & Level 4: ข้อมูลพื้นฐานสำหรับติดตาม (Baseline)
+                  Level 3 &amp; Level 4: ข้อมูลพื้นฐานสำหรับติดตาม (Baseline)
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-sarabun">
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">ความมั่นใจนำไปปรับใช้/สอนงาน:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day17Subs, (s) => s.day17Data?.baseline1)} / 5.00</p>
-                  </div>
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">ช่วยยกระดับมาตรฐานทีมงาน:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day17Subs, (s) => s.day17Data?.baseline2)} / 5.00</p>
-                  </div>
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-slate-600 mb-1">คาดว่าจะนำไปปรับใช้จริง:</p>
-                    <p className="text-xl font-kanit font-bold text-navy-900">{calcAvg(day17Subs, (s) => s.day17Data?.baseline3)} / 5.00</p>
-                  </div>
+                  {BASELINE_QUESTIONS.map((bq) => (
+                    <div key={bq.key} className="p-3.5 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="text-slate-600 mb-1 leading-snug">{bq.label}</p>
+                      <p className="text-xl font-kanit font-bold text-navy-900">
+                        {calcAvg(currentSubs, (s) => normalizeSubmissionDailyData(s)?.[bq.key])} / 5.00
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -536,67 +486,79 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
           {/* VIEW: OVERALL SUMMARY (All days combined) */}
           {selectedView === 'overall' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Day-by-Day comparison card */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
                 <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
-                  เปรียบเทียบผลการประเมินรายวัน
+                  เปรียบเทียบผลการประเมินรายวัน (ตลอดหลักสูตร)
                 </h3>
-                <div className="space-y-3">
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <div>
-                      <p className="font-kanit font-semibold text-xs sm:text-sm text-navy-900">
-                        วันที่ 16 พ.ย. 2569 (ประเด็นกฎหมาย/Scenario)
-                      </p>
-                      <p className="text-[11px] text-slate-500 font-sarabun">
-                        ส่งแล้ว {day16Subs.length} ฉบับ
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-kanit font-bold text-base text-navy-900">
-                        {calcAvg(day16Subs, (s) => s.overallSatisfaction).toFixed(2)} / 5.00
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <div>
-                      <p className="font-kanit font-semibold text-xs sm:text-sm text-navy-900">
-                        วันที่ 17 พ.ย. 2569 (พยานหลักฐาน/Readiness)
-                      </p>
-                      <p className="text-[11px] text-slate-500 font-sarabun">
-                        ส่งแล้ว {day17Subs.length} ฉบับ
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-kanit font-bold text-base text-navy-900">
-                        {calcAvg(day17Subs, (s) => s.overallSatisfaction).toFixed(2)} / 5.00
-                      </p>
-                    </div>
-                  </div>
+                <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                  {preparedDays.map((d) => {
+                    const daySubs = submissions.filter((s) => s.dayId === d.id);
+                    const cfg = QUESTIONNAIRE_CONFIGS[d.id];
+                    return (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setSelectedView(d.id)}
+                        className="w-full text-left p-3.5 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-between gap-3 transition-colors cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-kanit font-semibold text-xs sm:text-sm text-navy-900 truncate">
+                            {d.dateStr} ({cfg?.shortTopic})
+                          </p>
+                          <p className="text-[11px] text-slate-500 font-sarabun">
+                            ส่งแล้ว {daySubs.length} ฉบับ
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-kanit font-bold text-base text-navy-900">
+                            {daySubs.length > 0
+                              ? `${calcAvg(daySubs, (s) => s.overallSatisfaction).toFixed(2)} / 5.00`
+                              : '—'}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Kirkpatrick Model Summary */}
               <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
                 <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
                   สรุปกรอบการประเมิน 4 ระดับ (Kirkpatrick Model)
                 </h3>
-                <div className="space-y-2 text-xs font-sarabun">
-                  <div className="p-2.5 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Level 1 Reaction: ความพึงพอใจต่อหลักสูตร</span>
-                    <span className="font-kanit font-bold text-navy-900">{overallAvg.toFixed(2)} / 5.00</span>
+                <div className="space-y-2.5 text-xs font-sarabun">
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">
+                      Level 1 Reaction: ความพึงพอใจต่อเนื้อหาและวิทยากร
+                    </span>
+                    <span className="font-kanit font-bold text-navy-900">
+                      {overallAvg.toFixed(2)} / 5.00
+                    </span>
                   </div>
-                  <div className="p-2.5 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Level 2 Learning: การเพิ่มขึ้นขององค์ความรู้</span>
-                    <span className="font-kanit font-bold text-emerald-700">วัดผล Pre/Post ครบถ้วน</span>
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">
+                      Level 2 Learning: ค่าเฉลี่ยความรู้ที่เพิ่มขึ้น (Gain)
+                    </span>
+                    <span className="font-kanit font-bold text-emerald-700">
+                      {overallGainAvg >= 0 ? `+${overallGainAvg.toFixed(2)}` : overallGainAvg.toFixed(2)}{' '}
+                      คะแนน
+                    </span>
                   </div>
-                  <div className="p-2.5 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Level 3 Behavior: แนวโน้มนำไปปรับใช้จริง</span>
-                    <span className="font-kanit font-bold text-navy-900">ติดตาม 3-6 เดือนถัดไป</span>
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">
+                      Level 3 Behavior: ความคาดหวังนำไปปฏิบัติ (Baseline)
+                    </span>
+                    <span className="font-kanit font-bold text-navy-900">
+                      {overallBaselineAvg.toFixed(2)} / 5.00
+                    </span>
                   </div>
-                  <div className="p-2.5 bg-slate-50 rounded border border-slate-200 flex justify-between items-center">
-                    <span className="font-semibold text-slate-800">Level 4 Results: ผลสัมฤทธิ์ต่อ สตง.</span>
-                    <span className="font-kanit font-bold text-navy-900">ยกระดับมาตรฐานตรวจสอบ</span>
+                  <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex justify-between items-center">
+                    <span className="font-semibold text-slate-800">
+                      Level 4 Results: ผลสัมฤทธิ์ต่อ สตง. (ติดตาม 3–6 เดือน)
+                    </span>
+                    <span className="font-kanit font-bold text-navy-900">
+                      {CONTENT_QUESTIONS.length > 0 ? 'พร้อมฐานข้อมูลอ้างอิง' : ''}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -604,7 +566,10 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
           )}
 
           {/* Qualitative Feedback from Participants */}
-          {currentSubs.some((s) => s.suggestions?.trim() || s.day16Data?.lecturerComment || s.day17Data?.lecturerComment) && (
+          {currentSubs.some((s) => {
+            const d = normalizeSubmissionDailyData(s);
+            return !!(s.suggestions?.trim() || d?.lecturerComment || d?.suggestions);
+          }) && (
             <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
               <h3 className="font-kanit font-bold text-base text-navy-900 pb-2 border-b">
                 ข้อเสนอแนะและข้อคิดเห็นจากผู้เข้าอบรมจริง
@@ -612,39 +577,49 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {currentSubs
-                  .filter((s) => s.suggestions?.trim() || s.day16Data?.lecturerComment || s.day17Data?.lecturerComment)
-                  .map((s) => (
-                    <div
-                      key={s.id}
-                      className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs font-sarabun"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-kanit font-semibold text-navy-900">
-                          {s.dayTitle}
-                        </span>
-                        <span className="text-slate-400 text-[11px]">{s.timestamp}</span>
+                  .filter((s) => {
+                    const d = normalizeSubmissionDailyData(s);
+                    return !!(s.suggestions?.trim() || d?.lecturerComment || d?.suggestions);
+                  })
+                  .map((s) => {
+                    const d = normalizeSubmissionDailyData(s);
+                    const sug = s.suggestions || d?.suggestions;
+                    return (
+                      <div
+                        key={s.id}
+                        className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-xs font-sarabun"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-kanit font-semibold text-navy-900">
+                            {s.dayTitle}
+                          </span>
+                          <span className="text-slate-400 text-[11px]">{s.timestamp}</span>
+                        </div>
+
+                        {d?.lecturerComment && (
+                          <p className="text-slate-700">
+                            <span className="font-semibold text-slate-900">ความเห็นต่อวิทยากร:</span>{' '}
+                            &quot;{d.lecturerComment}&quot;
+                          </p>
+                        )}
+
+                        {sug && (
+                          <p className="text-slate-700">
+                            <span className="font-semibold text-slate-900">ข้อเสนอแนะเพิ่มเติม:</span>{' '}
+                            &quot;{sug}&quot;
+                          </p>
+                        )}
+
+                        <div className="pt-2 border-t border-slate-200/60 text-[11px] text-slate-500">
+                          {s.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'} (
+                          {s.generalInfo.bureauName}) ·{' '}
+                          {s.generalInfo.position === 'senior_professional'
+                            ? 'ชำนาญการ'
+                            : 'ชำนาญการพิเศษ'}
+                        </div>
                       </div>
-
-                      {(s.day16Data?.lecturerComment || s.day17Data?.lecturerComment) && (
-                        <p className="text-slate-700">
-                          <span className="font-semibold text-slate-900">ความเห็นต่อวิทยากร:</span>{' '}
-                          "{s.day16Data?.lecturerComment || s.day17Data?.lecturerComment}"
-                        </p>
-                      )}
-
-                      {s.suggestions && (
-                        <p className="text-slate-700">
-                          <span className="font-semibold text-slate-900">ข้อเสนอแนะเพิ่มเติม:</span>{' '}
-                          "{s.suggestions}"
-                        </p>
-                      )}
-
-                      <div className="pt-2 border-t border-slate-200/60 text-[11px] text-slate-500">
-                        {s.generalInfo.workArea === 'central' ? 'ส่วนกลาง' : 'ส่วนภูมิภาค'} ({s.generalInfo.bureauName}) ·{' '}
-                        {s.generalInfo.position === 'senior_professional' ? 'ชำนาญการ' : 'ชำนาญการพิเศษ'}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
               </div>
             </div>
           )}

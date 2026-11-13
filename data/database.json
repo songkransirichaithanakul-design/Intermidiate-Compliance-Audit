@@ -1,5 +1,118 @@
 {
   "submissions": [],
-  "days": [],
-  "participants": []
+  "days": [
+    {
+      "id": "day-1",
+      "dayNumber": 1,
+      "dayLabel": "วันที่ 1",
+      "title": "ประเมินผลอบรมวันที่ 16 พ.ย. 2569",
+      "dateStr": "16 พ.ย. 2569",
+      "status": "open",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-2",
+      "dayNumber": 2,
+      "dayLabel": "วันที่ 2",
+      "title": "ประเมินผลอบรมวันที่ 17 พ.ย. 2569",
+      "dateStr": "17 พ.ย. 2569",
+      "status": "closed",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-3",
+      "dayNumber": 3,
+      "dayLabel": "วันที่ 3",
+      "title": "ประเมินผลอบรมวันที่ 18 พ.ย. 2569",
+      "dateStr": "18 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-4",
+      "dayNumber": 4,
+      "dayLabel": "วันที่ 4",
+      "title": "ประเมินผลอบรมวันที่ 19 พ.ย. 2569",
+      "dateStr": "19 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-5",
+      "dayNumber": 5,
+      "dayLabel": "วันที่ 5",
+      "title": "ประเมินผลอบรมวันที่ 20 พ.ย. 2569",
+      "dateStr": "20 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-6",
+      "dayNumber": 6,
+      "dayLabel": "วันที่ 6",
+      "title": "ประเมินผลอบรมวันที่ 23 พ.ย. 2569",
+      "dateStr": "23 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-7",
+      "dayNumber": 7,
+      "dayLabel": "วันที่ 7",
+      "title": "ประเมินผลอบรมวันที่ 24 พ.ย. 2569",
+      "dateStr": "24 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-8",
+      "dayNumber": 8,
+      "dayLabel": "วันที่ 8",
+      "title": "ประเมินผลอบรมวันที่ 25 พ.ย. 2569",
+      "dateStr": "25 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-9",
+      "dayNumber": 9,
+      "dayLabel": "วันที่ 9",
+      "title": "ประเมินผลอบรมวันที่ 26 พ.ย. 2569",
+      "dateStr": "26 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-10",
+      "dayNumber": 10,
+      "dayLabel": "วันที่ 10",
+      "title": "ประเมินผลอบรมวันที่ 27 พ.ย. 2569",
+      "dateStr": "27 พ.ย. 2569",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0
+    },
+    {
+      "id": "day-special",
+      "dayNumber": 11,
+      "dayLabel": "กิจกรรมพิเศษ",
+      "title": "ประเมินผลการศึกษาดูงาน",
+      "dateStr": "ยังไม่ได้กำหนดวันและสถานที่",
+      "status": "waiting",
+      "totalSubmitted": 0,
+      "averageScore": 0,
+      "isSpecial": true
+    }
+  ],
+  "participants": [],
+  "resetEpoch": 1794554000000
 }

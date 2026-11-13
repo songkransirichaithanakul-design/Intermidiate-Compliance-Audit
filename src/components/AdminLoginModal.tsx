@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DataService } from '../services/dataService';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -14,22 +15,23 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedEmail = email.trim().toLowerCase();
-    const trimmedPw = password.trim();
+    setIsSubmitting(true);
+    setErrorMessage('');
 
-    if (
-      trimmedEmail === 'songkran.sirichaithanakul@gmail.com' &&
-      trimmedPw === 'songkran8192'
-    ) {
+    const res = await DataService.adminLogin(email, password);
+    setIsSubmitting(false);
+
+    if (res.success) {
       setErrorMessage('');
       onSuccess();
     } else {
-      setErrorMessage('รหัสผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
+      setErrorMessage(res.error || 'รหัสผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง');
     }
   };
 
